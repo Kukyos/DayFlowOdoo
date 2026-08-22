@@ -26,7 +26,6 @@ Created with the first admin during company sign-up.
 |---|---|---|
 | `id` | uuid pk | |
 | `name` | text not null | e.g. `Odoo India` |
-| `login_prefix` | text not null | Immutable uppercase first word used for generated Login IDs |
 | `logo_url` | text | company-logo Storage URL |
 | `time_off_types` | text[] default paid/sick/unpaid | Labels available in the request form |
 | `working_days` | smallint[] default 1–5 | Sunday = 0 through Saturday = 6 |
@@ -46,7 +45,6 @@ information, salary, leave-allocation, or login-counter tables.
 | `id` | uuid pk | → `auth.users(id)` on delete cascade |
 | `company_id` | uuid not null | → `companies(id)` |
 | `role` | text not null | `admin`, `hr`, or `employee` |
-| `login_id` | text not null unique | Generated immutable sign-in ID, e.g. `ODOO-000001` |
 | `first_name` / `last_name` | text not null | |
 | `work_email` | text not null | Auth email |
 | `mobile` | text | |
@@ -195,10 +193,9 @@ creates the Auth user and employee row, generates a cryptographically secure
 temporary password, and returns that password once to the creating Admin/HR.
 The service-role key and plaintext password are never stored in the browser or
 database. The employee must replace the temporary password at first sign-in.
-Employees do not self-register. They sign in with either their work email or
-their generated Login ID and password. Employee creation generates a Login ID
-and temporary password; the Login ID is an immutable company prefix plus a
-six-digit sequence.
+Employees do not self-register. Email and password are the required sign-in
+path. Employee creation generates only a temporary password; the employee's
+work email is the sole sign-in identifier.
 
 Storage buckets: public `avatars` and `company-logos`, plus private
 `leave-documents`. Object paths begin with the caller's company ID; employee

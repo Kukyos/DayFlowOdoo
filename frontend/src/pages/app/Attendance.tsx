@@ -33,7 +33,6 @@ import {
   companyAttendance,
   myAttendance,
 } from '@/services/attendance'
-import directoryActionIllustration from '@/assets/employee-directory-action-illustration.png'
 
 /**
  * One route, two views — docs/AUTH.md: the page switches on the role rather
@@ -118,37 +117,15 @@ function MyAttendance() {
 
       {status === 'ready' && (
         <>
-          {/*
-            Same technique as the dashboard's greeting mascot behind "Your
-            attendance": the figure peeks up from behind the last card in the
-            row, `-z-10` under it. lg-only, for the same reason as there — below
-            that breakpoint the grid drops to 2 or 1 columns and "last card"
-            stops meaning "top-right", so it would land behind the wrong card.
-
-            X = lg:right-4  (in from the row's right edge)
-            Y = lg:-top-24  (up from the row's top — this image is landscape,
-                unlike the dashboard's roughly-square mascots, so more of its
-                own height is "used up" by shoulder/arm below the face; it
-                needs a bigger lift to clear the same amount of head above
-                the card)
-          */}
-          <div className="relative">
-            <img
-              src={directoryActionIllustration}
-              alt=""
-              aria-hidden="true"
-              className="pointer-events-none absolute -z-10 hidden h-auto w-40 select-none lg:-top-24 lg:right-4 lg:block"
+          <div className="mb-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Present" value={`${data.summary.present}`} hint="working days" />
+            <StatCard label="Half days" value={`${data.summary.halfDay}`} />
+            <StatCard label="On leave" value={`${data.summary.leave}`} />
+            <StatCard
+              label="Absent"
+              value={`${data.summary.absent}`}
+              hint="no record, no leave"
             />
-            <div className="mb-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Present" value={`${data.summary.present}`} hint="working days" />
-              <StatCard label="Half days" value={`${data.summary.halfDay}`} />
-              <StatCard label="On leave" value={`${data.summary.leave}`} />
-              <StatCard
-                label="Absent"
-                value={`${data.summary.absent}`}
-                hint="no record, no leave"
-              />
-            </div>
           </div>
 
           {data.days.length === 0 ? (

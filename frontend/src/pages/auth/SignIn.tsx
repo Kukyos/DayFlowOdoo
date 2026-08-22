@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
 import { Button, Field, Input } from '@/components/ui'
-import { identifierProblem, signIn } from '@/services/auth'
+import { emailProblem, signIn } from '@/services/auth'
 
 /**
- * Sign in with an Auth email or a generated Login ID. Login-ID resolution and
- * password verification stay in the narrow Edge Function so the browser never
- * gets an unauthenticated employee-directory lookup.
+ * Sign in — email and password only.
+ *
+ * docs/AUTH.md puts pre-authentication login-ID resolution out of scope, so
+ * there is deliberately no "login ID or email" field: resolving an ID before
+ * the user is authenticated needs an unauthenticated lookup over employee
+ * emails, which is an enumeration surface nobody needs for the MVP.
  *
  * The reference's "Remember my login" and "Forgot your password?" are also
  * deliberately absent. Supabase persists the session in local storage already,
@@ -17,7 +20,7 @@ import { identifierProblem, signIn } from '@/services/auth'
  */
 export function SignIn() {
   const navigate = useNavigate()
-  const [identifier, setIdentifier] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [touched, setTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,23 +28,23 @@ export function SignIn() {
 
   // Only complain once there is something to complain about. Blurring an empty
   // field you have not filled in yet is not an error — it is just a field.
-  const identifierError = touched && identifier.length > 0 ? identifierProblem(identifier) : null
+  const emailError = touched && email.length > 0 ? emailProblem(email) : null
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setTouched(true)
     setError(null)
-    if (!identifier || !password) {
-      setError('Enter your work email or Login ID and password.')
+    if (!email || !password) {
+      setError('Enter your email and password.')
       return
     }
-    if (identifierProblem(identifier)) {
-      setError('Enter a valid work email or Login ID.')
+    if (emailProblem(email)) {
+      setError('Enter a valid email address.')
       return
     }
     setBusy(true)
     try {
-      await signIn(identifier, password)
+      await signIn(email, password)
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign you in.')
@@ -73,17 +76,17 @@ export function SignIn() {
             </p>
           )}
 
-          <Field label="Work email or Login ID" htmlFor="identifier" error={identifierError}>
+          <Field label="Work email" htmlFor="email" error={emailError}>
             <Input
-              id="identifier"
-              name="username"
-              type="text"
+              id="email"
+              name="email"
+              type="email"
               autoComplete="username"
               autoFocus
-              placeholder="ananya.iyer@odoo.in or ODOO-000001"
-              value={identifier}
-              aria-invalid={Boolean(identifierError)}
-              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="ananya.iyer@odoo.in"
+              value={email}
+              aria-invalid={Boolean(emailError)}
+              onChange={(e) => setEmail(e.target.value)}
               onBlur={() => setTouched(true)}
             />
           </Field>

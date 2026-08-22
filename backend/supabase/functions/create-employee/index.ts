@@ -80,12 +80,6 @@ export default {
 
     const temporaryPassword = randomPassword();
 
-    const { data: loginId, error: loginIdError } = await ctx.supabaseAdmin
-      .rpc("allocate_employee_login_id", { p_company_id: caller.company_id });
-    if (loginIdError || !loginId) {
-      return fail("Could not allocate a Login ID for that employee.", 500);
-    }
-
     const { data: createdAuth, error: createAuthError } = await ctx.supabaseAdmin.auth.admin.createUser({
       email,
       password: temporaryPassword,
@@ -99,7 +93,6 @@ export default {
     const profile = {
       id: createdAuth.user.id,
       company_id: caller.company_id,
-      login_id: loginId,
       role: body.role,
       first_name: firstName,
       last_name: lastName,
@@ -126,7 +119,6 @@ export default {
 
     return Response.json({
       employee,
-      loginId,
       temporaryPassword,
     });
   }),

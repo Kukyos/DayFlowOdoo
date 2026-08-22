@@ -33,10 +33,8 @@ components must not make their own role comparison.
 
 ## Sign-in
 
-Employees may sign in with **work email + password** or their generated
-**Login ID + password**. Login IDs use the company-name first word in uppercase
-plus a six-digit sequence (for example, `ODOO-000001`) and never change after
-creation. Employee creation generates a Login ID and a temporary password.
+The required MVP path is **email + password**. Employee creation generates only
+a temporary password; the employee's work email is their sign-in identifier.
 
 Email confirmation is required. Company sign-up creates the Auth user, company,
 and first admin atomically, but returns no session. The page shows a check-email
@@ -101,8 +99,7 @@ experience measure; RLS is the security boundary.
 
 ## Dev accounts
 
-Seed and share privately one admin account and one employee account. Both may
-use normal email/password authentication or their generated Login ID; no mock
-user or development bypass.
+Seed and share privately one admin account and one employee account. Both use
+normal email/password authentication; no mock user or development bypass.
 Supabase persists a browser session, so the team can log in once and exercise
 the same RLS path during the demo.

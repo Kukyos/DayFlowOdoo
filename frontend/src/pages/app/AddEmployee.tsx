@@ -13,14 +13,14 @@ import type { Role } from '@/types/models'
  * Admin/HR create an employee. This is the only way a person enters the
  * system — nobody self-registers (docs/AUTH.md §1).
  *
- * The employee signs in with their work email or generated Login ID. The generated password is shown
+ * The employee signs in with their work email. The generated password is shown
  * **once**, at creation, and never again: it is not stored in plaintext, not
  * emailed from here, and not rendered on the profile afterwards.
  */
 export function AddEmployee() {
   const { isPrivileged } = useSession()
   const navigate = useNavigate()
-  const [created, setCreated] = useState<{ name: string; email: string; loginId: string; password: string } | null>(
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(
     null,
   )
   const [error, setError] = useState<string | null>(null)
@@ -82,14 +82,13 @@ export function AddEmployee() {
     }
     setBusy(true)
     try {
-      const { employee, loginId, temporaryPassword } = await createEmployee({
+      const { employee, temporaryPassword } = await createEmployee({
         ...form,
         manager_id: form.manager_id || null,
       })
       setCreated({
         name: fullName(employee),
         email: employee.work_email,
-        loginId,
         // Generated server-side in the real flow and returned once. Never
         // stored in plaintext, never shown again after this screen.
         password: temporaryPassword,
@@ -109,16 +108,13 @@ export function AddEmployee() {
           <p className="t-label text-text-muted">Sign-in email</p>
           <p className="mt-1 text-lg font-semibold">{created.email}</p>
 
-          <p className="t-label mt-6 text-text-muted">Login ID</p>
-          <p className="mt-1 text-lg font-semibold">{created.loginId}</p>
-
           <p className="t-label mt-6 text-text-muted">Temporary password</p>
           <p className="t-data mt-1 text-2xl">{created.password}</p>
 
           <p className="t-caption mt-6 rounded-control border border-danger-ink px-3 py-2 text-danger-ink">
             Copy the temporary password now — it is shown once and cannot be retrieved. Share
-            the work email or Login ID and password with {created.name}, who must change the
-            password at first sign-in.
+            the email and password with {created.name}, who must change the password at first
+            sign-in.
           </p>
 
           <div className="mt-6 flex gap-2">
@@ -142,7 +138,7 @@ export function AddEmployee() {
     <>
       <PageHeader
         title="Add employee"
-        subtitle="The employee will receive a Login ID and temporary password. They can sign in with that ID or their work email."
+        subtitle="The employee will sign in with their work email and a generated temporary password."
         actions={
           <Link to="/employees">
             <Button size="sm">Cancel</Button>

@@ -37,40 +37,13 @@ export function emailProblem(email: string): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? null : 'Enter a valid email address.'
 }
 
-const LOGIN_ID = /^[A-Z0-9]+-\d{6,}$/
-
-export function identifierProblem(identifier: string): string | null {
-  const normalized = identifier.trim()
-  if (emailProblem(normalized) === null || LOGIN_ID.test(normalized.toUpperCase())) return null
-  return 'Enter a valid work email or Login ID.'
-}
-
-type LoginIdSignInResult = { access_token: string; refresh_token: string }
-
-export async function signIn(identifier: string, password: string): Promise<Session> {
-  const normalizedIdentifier = identifier.trim()
-  if (!normalizedIdentifier || !password) {
-    throw new ServiceError('Enter your work email or Login ID and password.')
-  }
-  if (identifierProblem(normalizedIdentifier)) throw new ServiceError('Enter a valid work email or Login ID.')
-
-  if (emailProblem(normalizedIdentifier) !== null) {
-    const { data, error } = await supabaseClient().functions.invoke<LoginIdSignInResult>(
-      'sign-in-with-login-id',
-      { body: { login_id: normalizedIdentifier.toUpperCase(), password } },
-    )
-    if (error || !data?.access_token || !data.refresh_token) {
-      throw new ServiceError('Those details do not match an account.', error)
-    }
-    const { data: sessionData, error: sessionError } = await supabaseClient().auth.setSession(data)
-    if (sessionError || !sessionData.session) {
-      throw new ServiceError('Those details do not match an account.', sessionError)
-    }
-    return sessionData.session
-  }
+export async function signIn(email: string, password: string): Promise<Session> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail || !password) throw new ServiceError('Enter your email and password.')
+  if (emailProblem(normalizedEmail)) throw new ServiceError('Enter a valid email address.')
 
   const { data, error } = await supabaseClient().auth.signInWithPassword({
-    email: normalizedIdentifier.toLowerCase(),
+    email: normalizedEmail,
     password,
   })
   if (error || !data.session) {

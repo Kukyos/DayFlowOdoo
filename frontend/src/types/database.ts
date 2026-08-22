@@ -56,7 +56,6 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          login_prefix: string
           logo_url: string | null
           name: string
           time_off_types: string[]
@@ -67,7 +66,6 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          login_prefix?: string
           logo_url?: string | null
           name: string
           time_off_types?: string[]
@@ -78,7 +76,6 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          login_prefix?: string
           logo_url?: string | null
           name?: string
           time_off_types?: string[]
@@ -153,7 +150,6 @@ export type Database = {
           is_active: boolean
           job_position: string | null
           last_name: string
-          login_id: string
           location: string | null
           manager_id: string | null
           mobile: string | null
@@ -183,7 +179,6 @@ export type Database = {
           is_active?: boolean
           job_position?: string | null
           last_name: string
-          login_id: string
           location?: string | null
           manager_id?: string | null
           mobile?: string | null
@@ -213,7 +208,6 @@ export type Database = {
           is_active?: boolean
           job_position?: string | null
           last_name?: string
-          login_id?: string
           location?: string | null
           manager_id?: string | null
           mobile?: string | null
