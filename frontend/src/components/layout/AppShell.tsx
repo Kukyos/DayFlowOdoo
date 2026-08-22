@@ -47,7 +47,7 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <CheckInControl employeeId={employee.id} onChange={() => { void refreshEmployee() }} />
+            <CheckInControl onChange={() => { void refreshEmployee() }} />
             <AvatarMenu
               name={fullName(employee)}
               role={isPrivileged ? 'Admin / HR' : 'Employee'}
@@ -68,13 +68,7 @@ export function AppShell() {
  * in twice is an error rather than a second row — the service enforces it and
  * this control reflects the three states: not in yet, in, done for the day.
  */
-function CheckInControl({
-  employeeId,
-  onChange,
-}: {
-  employeeId: string
-  onChange: () => void
-}) {
+function CheckInControl({ onChange }: { onChange: () => void }) {
   const [state, setState] = useState<{
     checkedIn: boolean
     checkIn: string | null
@@ -84,13 +78,13 @@ function CheckInControl({
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const s = await todayStatus(employeeId)
+    const s = await todayStatus()
     setState({
       checkedIn: s.checkedIn,
       checkIn: s.row?.check_in ?? null,
       checkOut: s.row?.check_out ?? null,
     })
-  }, [employeeId])
+  }, [])
 
   useEffect(() => {
     void load()
@@ -100,8 +94,8 @@ function CheckInControl({
     setBusy(true)
     setError(null)
     try {
-      if (state?.checkedIn) await checkOut(employeeId)
-      else await checkIn(employeeId)
+      if (state?.checkedIn) await checkOut()
+      else await checkIn()
       await load()
       onChange()
     } catch (e) {

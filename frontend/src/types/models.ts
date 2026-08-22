@@ -29,17 +29,13 @@ type EmployeeRow = Tables<'employees'>
 
 export type Employee = Omit<
   EmployeeRow,
-  'role' | 'paid_leave_balance' | 'sick_leave_balance'
+  'role'
 > & {
   role: Role
-  // These are non-null on a live own/privileged row. They remain nullable in
-  // this application type until the directory-safe profile union lands.
-  paid_leave_balance: number | null
-  sick_leave_balance: number | null
 }
 
 /**
- * What `employee_directory` exposes. Deliberately missing every private,
+ * What `list_employee_directory()` exposes. Deliberately missing every private,
  * salary and balance column — if a field is not on this type, a coworker
  * cannot see it, and the page cannot accidentally render it.
  */
@@ -57,6 +53,14 @@ export type DirectoryEmployee = {
   skills: string[] | null
   presence: Presence
 }
+
+export type EmployeeProfile = {
+  employee: Employee | DirectoryEmployee
+  presence: Presence
+}
+
+export const isFullEmployee = (employee: Employee | DirectoryEmployee): employee is Employee =>
+  'monthly_wage' in employee
 
 export type AttendanceRow = {
   id: string

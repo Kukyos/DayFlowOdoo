@@ -92,3 +92,13 @@ shared project remains pending until a private dev-account credential is used.
 Remote security advisors also confirmed that the tracked grant-hardening
 migration removed browser execution of `public.rls_auto_enable()`. The only
 remaining warning is the Dashboard-level leaked-password-protection setting.
+
+Milestones 2–4 were verified on 2026-08-22: a rollback-only local test created
+two disposable companies and authenticated actors, then confirmed the guarded
+directory RPC stayed company-scoped, a self profile update succeeded, a self
+wage update was rejected, and check-in/check-out changed only the caller's
+current-day row and directory presence. The linked project has all four
+migrations through `20260822065110_replace_directory_view_with_guarded_rpc.sql`.
+The security-definer directory view was replaced with the narrow guarded RPC;
+the remote advisor now has only intentional guarded-RPC warnings plus the
+Dashboard-level leaked-password-protection setting.

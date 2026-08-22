@@ -59,7 +59,7 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Reads `employee_directory`; includes derived `presence` |
+| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
 | `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
 | `createEmployee(input)` | `{ employee, loginId, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
@@ -70,9 +70,9 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `checkIn()` | `AttendanceRow` | Inserts today's row; errors if one already exists |
-| `checkOut()` | `AttendanceRow` | Updates the caller's open row for today |
-| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Drives the header control |
+| `checkIn()` | `AttendanceRow` | Calls the guarded server action for the caller; errors if one already exists |
+| `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
+| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
 | `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
 | `companyAttendance(date, { search? })` | `AttendanceDay[]` | Admin/HR only |
 | `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |

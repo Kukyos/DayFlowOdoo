@@ -30,7 +30,7 @@ export function Dashboard() {
       myRequests(employee.id),
       isPrivileged ? pendingRequests() : Promise.resolve([]),
     ])
-    const status = await todayStatus(employee.id)
+    const status = await todayStatus()
     return { directory, attendance, balances, mine, pending, status }
   }, [employee?.id, isPrivileged])
 

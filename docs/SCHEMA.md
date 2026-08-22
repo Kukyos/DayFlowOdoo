@@ -10,12 +10,11 @@ auth.users → employees → attendance
 companies → employees
 ```
 
-**Implementation status (2026-08-22):** the repository and linked project both
-have the auth/company foundation and
-`20260822061245_add_password_change_requirement.sql`. Companies, employees, and
-the forced-password-change flag are live. The linked project also has the
-tracked `20260822063332_harden_rls_auto_enable_grants.sql`; attendance, leave,
-directory access, and later-tier tables remain future tracked migrations.
+**Implementation status (2026-08-22):** the repository and linked project have
+the auth/company foundation, forced-password-change guard, company-scoped safe
+directory RPC, controlled employee updates, and check-in/out attendance table
+and RPCs. Leave, employee creation, attendance history pages, Storage, and
+later-tier tables remain future milestones.
 
 ## `companies`
 
@@ -123,10 +122,10 @@ Approving a paid or sick request decrements the matching balance in the same
 database operation. Unpaid leave changes no balance. Re-reviewing an already
 approved request must not deduct a balance twice.
 
-## `employee_directory` view
+## Directory-safe employee RPC
 
-Normal employees must never query coworkers' full `employees` rows. This view
-exposes only:
+Normal employees must never query coworkers' full `employees` rows. This RPC
+returns only:
 
 ```text
 id, first_name, last_name, avatar_url, job_position, department, location,
@@ -140,10 +139,11 @@ is derived at query time, never stored on `employees`:
 2. otherwise, approved leave covering today → `leave`
 3. otherwise → `absent`
 
-Because employees can select only their own `employees` row, this view needs
-owner privileges (`security_invoker = false`) and must enforce its own company
-scope using the caller's employee row. Grant authenticated users `SELECT` only
-on this narrow view, not broad coworker access to `employees`.
+Because employees can select only their own `employees` row,
+`list_employee_directory()` is a guarded `SECURITY DEFINER` RPC. It enforces
+company scope using the caller's active employee row and returns only the
+columns above. Grant authenticated users execute only on this narrow RPC, not
+broad coworker access to `employees`.
 
 ## RLS and controlled operations
 
@@ -155,7 +155,7 @@ the browser; never expose a service-role key.
 |---|---|---|
 | `companies` | select own company | select and update own company |
 | `employees` | select own full row; update own permitted profile/private fields | select, insert, update company employees |
-| `employee_directory` | select company directory | select company directory |
+| `list_employee_directory()` | read company directory-safe data | read company directory-safe data |
 | `attendance` | select own; check in/out own current-day row | select and update company attendance |
 | `leave_requests` | select own; create own; cancel/update pending own request | select all company requests; approve or reject |
 

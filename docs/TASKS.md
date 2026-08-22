@@ -55,16 +55,16 @@ is the sign-up → landing path working end to end.
 | 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
 | 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
 | 2.9a | Backend Milestone 0 — linked/local migration parity, auth/salary contract decisions, and RLS test matrix locked | Praneet | ☑ linked and local history both at `20260822043456`; see `RLS_TEST_MATRIX.md` |
-| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ auth/company foundation and password flag added; attendance and leave remain |
-| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ own-employee and own-company reads added; remaining tables and linked two-user verification remain |
+| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ auth/company, password flag, directory RPC, profile guard, and attendance added; leave remains |
+| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ directory/profile/attendance boundaries covered by rollback tests; leave and linked two-user verification remain |
 | 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
-| 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☐ |
-| 2.12b | `employee_directory` view with company scoping and only its documented safe columns | Praneet | ☐ |
+| 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☑ `enforce_employee_update_boundary` trigger |
+| 2.12b | Company-scoped directory-safe RPC with only documented safe columns | Praneet | ☑ `list_employee_directory()` |
 | 2.12c | Leave-review transaction: set reviewer/status and decrement the matching leave balance exactly once | Praneet | ☐ |
 | 2.13 | Seed data per `SCHEMA.md` — 10–12 employees, current attendance, all presence states, and pending requests | Praneet | ☐ |
 | 2.15 | **Two seeded dev accounts, admin and employee, logged into from a real browser** | Praneet | ☐ |
 | 2.16 | `AuthProvider` + `ProtectedRoute` + `AdminRoute` | Praneet | ◐ implemented; signed-out browser redirect verified, authenticated admin/employee browser verification remains |
-| 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ◐ generated from the verified local schema and build-tested; commit remains |
+| 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ◐ generated from the verified linked schema and build-tested; commit remains |
 | 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change; verify the browser never receives a service-role key | Praneet + Armaan | ☐ |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
 | 2.20 | `pages/Scaffold.tsx` deleted. `pages/NotBuiltYet.tsx` replaces it — delete that once every route on `main` has a real page | Armaan | ◐ |
@@ -125,8 +125,8 @@ lane had in-flight work on the same pages. Expect this stage to be ugly.
 | # | Task | Owner | Done |
 |---|---|---|---|
 | 4.1 | Announce the start; confirm nobody has in-flight work on the pages being wired | Praneet | ☐ |
-| 4.2 | Directory + profile | Praneet | ☐ |
-| 4.3 | Attendance, both views, and the check in/out control | Praneet | ☐ |
+| 4.2 | Directory + profile | Praneet | ◐ live directory and safe/full profile reads plus updates; avatar/upload and reporting data remain |
+| 4.3 | Attendance, both views, and the check in/out control | Praneet | ◐ live header check-in/out; history views remain fixture-backed |
 | 4.4 | Time off, both views | Praneet | ☐ |
 | 4.5 | Salary Info calculation and wage updates | Praneet | ☐ |
 | 4.6 | Add employee through server-side temporary-password creation and force the first password change | Praneet | ☐ |

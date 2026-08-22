@@ -34,6 +34,17 @@ export function supabaseClient(): SupabaseClient<Database> {
   return client
 }
 
+/** Converts a Supabase result into the service contract used by pages. */
+export function unwrap<T>(
+  result: { data: T | null; error: { message: string } | null },
+  fallback = 'We could not load that data. Please try again.',
+): T {
+  if (result.error || result.data === null) {
+    throw new ServiceError(result.error?.message || fallback, result.error)
+  }
+  return result.data
+}
+
 /** Simulates a network round-trip for services that still use local fixtures. */
 export const latency = (ms = 320): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
