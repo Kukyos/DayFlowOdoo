@@ -10,45 +10,42 @@ import {
   StatCard,
   StatusChip,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
-import { formatDate, formatTime, monthKey, today } from '@/lib/dates'
-import { attendanceSummary, todayStatus } from '@/services/attendance'
-import { listEmployees } from '@/services/employees'
-import { myBalances, myRequests, pendingRequests } from '@/services/timeOff'
+import { formatDate, formatTime } from '@/lib/dates'
+import { getDashboardSummary } from '@/services/dashboard'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
+import dashboardIllustration from '@/assets/dashboard-support-illustration.png'
 
 export function Dashboard() {
   const { employee, isPrivileged } = useSession()
 
   const { status, data, error, reload } = useAsync(async () => {
     if (!employee) throw new Error('Not signed in.')
-    const [directory, attendance, balances, mine, pending] = await Promise.all([
-      listEmployees(),
-      attendanceSummary(employee.id, monthKey(today())),
-      myBalances(employee.id),
-      myRequests(employee.id),
-      isPrivileged ? pendingRequests() : Promise.resolve([]),
-    ])
-    const status = await todayStatus(employee.id)
-    return { directory, attendance, balances, mine, pending, status }
+    return getDashboardSummary()
   }, [employee?.id, isPrivileged])
 
   if (status === 'loading') return <Spinner label="Loading your dashboard" />
   if (status === 'error') return <ErrorState message={error} onRetry={reload} />
 
-  const inOffice = data.directory.filter((e) => e.presence === 'present')
-  const onLeave = data.directory.filter((e) => e.presence === 'leave')
+  const inOffice = data.inOffice
 
   return (
-    <>
+    <div className="relative isolate min-h-[calc(100vh-9rem)] pb-44 sm:pb-52 lg:pb-0">
+      <img
+        src={dashboardIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[calc(50%_-_50vw)] -bottom-10 -z-10 w-[275px] select-none sm:w-[325px] lg:w-[350px]"
+      />
+
       <PageHeader
         title={`Good to see you, ${employee?.first_name}`}
         subtitle={
-          data.status.row?.check_in
-            ? `Checked in at ${formatTime(data.status.row.check_in)}${
-                data.status.row.check_out
-                  ? `, out at ${formatTime(data.status.row.check_out)}.`
+          data.today.row?.check_in
+            ? `Checked in at ${formatTime(data.today.row.check_in)}${
+                data.today.row.check_out
+                  ? `, out at ${formatTime(data.today.row.check_out)}.`
                   : ' — still in.'
               }`
             : 'You have not checked in today. The control is in the header.'
@@ -58,15 +55,15 @@ export function Dashboard() {
       <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {isPrivileged ? (
           <>
-            <StatCard label="Headcount" value={`${data.directory.length}`} hint="active employees" />
+            <StatCard label="Headcount" value={`${data.company?.headcount ?? 0}`} hint="active employees" />
             <StatCard
               label="In the office"
-              value={`${inOffice.length}`}
-              hint={`${onLeave.length} on leave`}
+              value={`${data.company?.presentToday ?? 0}`}
+              hint={`${data.company?.onLeaveToday ?? 0} on leave`}
             />
             <StatCard
               label="Awaiting approval"
-              value={`${data.pending.length}`}
+              value={`${data.company?.pendingLeave ?? 0}`}
               hint="leave requests"
             />
             <StatCard
@@ -91,25 +88,25 @@ export function Dashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {isPrivileged && (
-          <Card>
+          <Card className="bg-surface/85 backdrop-blur-[1px]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="t-h3">Waiting on you</h2>
               <Link to="/time-off">
                 <Button size="sm">Review all</Button>
               </Link>
             </div>
-            {data.pending.length === 0 ? (
+            {data.pendingRequests.length === 0 ? (
               <p className="t-caption py-6 text-text-muted">
                 Nothing to approve. Every request has been dealt with.
               </p>
             ) : (
               <ul>
-                {data.pending.slice(0, 5).map((r) => (
+                {data.pendingRequests.map((r) => (
                   <li
                     key={r.id}
                     className="flex items-center gap-3 border-b border-border-soft py-3 last:border-0"
                   >
-                    <Avatar name={r.employee_name} size={32} />
+                    <Avatar name={r.employee_name} src={r.avatar_url} size={32} />
                     <div className="min-w-0">
                       <p className="t-caption">{r.employee_name}</p>
                       <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
@@ -125,7 +122,7 @@ export function Dashboard() {
           </Card>
         )}
 
-        <Card>
+        <Card className="bg-surface/85 backdrop-blur-[1px]">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="t-h3">In the office today</h2>
             <Link to="/employees">
@@ -142,7 +139,7 @@ export function Dashboard() {
                     to={`/employees/${e.id}`}
                     className="flex items-center gap-2 rounded-control border border-border px-2.5 py-1.5 hover:bg-neutral-fill"
                   >
-                    <Avatar name={`${e.first_name} ${e.last_name}`} size={24} />
+                    <Avatar name={`${e.first_name} ${e.last_name}`} src={e.avatar_url} size={24} />
                     <span className="t-caption">{e.first_name}</span>
                     <PresenceDot presence={e.presence} />
                   </Link>
@@ -152,20 +149,20 @@ export function Dashboard() {
           )}
         </Card>
 
-        <Card>
+        <Card className="bg-surface/85 backdrop-blur-[1px]">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="t-h3">Your recent requests</h2>
             <Link to="/time-off">
               <Button size="sm">Time off</Button>
             </Link>
           </div>
-          {data.mine.length === 0 ? (
+          {data.recentRequests.length === 0 ? (
             <p className="t-caption py-6 text-text-muted">
               You have not requested any time off yet.
             </p>
           ) : (
             <ul>
-              {data.mine.slice(0, 5).map((r) => (
+              {data.recentRequests.map((r) => (
                 <li
                   key={r.id}
                   className="flex items-center gap-3 border-b border-border-soft py-3 last:border-0"
@@ -185,6 +182,6 @@ export function Dashboard() {
           )}
         </Card>
       </div>
-    </>
+    </div>
   )
 }

@@ -31,9 +31,10 @@ who works here, who showed up today, who is on leave, and what each person is
 owed at the end of the month. Today those live in four places that disagree with
 each other.
 
-Dayflow puts them in one place. An HR officer creates an employee through an
-invite; that employee signs in with email and password, then checks in and out
-each day. When they need time off, they request paid, sick, or unpaid leave.
+Dayflow puts them in one place. An HR officer creates an employee and receives a
+temporary password to share once; that employee replaces it at first sign-in,
+then checks in and out each day. When they need time off, they request paid,
+sick, or unpaid leave.
 HR approves or rejects it, and approval updates the matching leave balance. The
 Salary Info screen derives a fixed breakdown from one monthly wage.
 
@@ -472,8 +473,9 @@ Still open, and each one blocks something:
   Blocks preview-URL verification, which is how §10 gets checked.
 - ⬜ **Design tokens extracted from the reference and filled into `docs/DESIGN.md`**
   (Armaan, Stage 2). §8 forbids an AI session inventing the palette. Blocks Stage 3.
-- ⬜ **Employee invite flow deployed and tested.** It creates the Auth user and
-  linked employee record without exposing a service-role key. Blocks the
+- ✅ **Employee creation flow deployed and API-tested.** It creates the Auth user
+  and linked employee record, returns a temporary password once, forces its
+  replacement, and never exposes a service-role key. Blocks the
   "HR creates an employee" Tier 1 flow.
 - ⬜ **Concurrent AI account usage tested.** Test before the event, not at hour four.
 - ⬜ **Does this run keep a clock?** The one number worth measuring is how long
@@ -482,6 +484,6 @@ Still open, and each one blocks something:
 ### Source-material decision
 
 The PDF describes open employee registration. The MVP does not: public Sign Up
-registers a company and its first admin only; normal employees are invited by
-Admin/HR and sign in with email and password. An optional generated login ID is
-display data, not an authentication path.
+registers a company and its first admin only; normal employees are created by
+Admin/HR with a one-time temporary password and sign in with email and password.
+An optional generated login ID is display data, not an authentication path.

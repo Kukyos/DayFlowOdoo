@@ -29,8 +29,9 @@ month.
   Basic, HRA, standard allowance, performance bonus, LTA, and a fixed allowance
   that absorbs the remainder so the components always total the wage exactly.
 Employees are created by HR, not by self-registration. The required sign-in path
-is email and password. A generated login ID such as `OIJODO20220001` is optional
-HR-facing display data, not a custom authentication system.
+is email and password: HR receives a temporary password once, and the employee
+must replace it at first sign-in. A generated login ID such as `OIJODO20220001`
+is optional HR-facing display data, not a custom authentication system.
 
 ## Stack
 
@@ -82,6 +83,18 @@ npm install
 cp .env.example .env.local   # fill in the Supabase keys
 npm run dev
 ```
+
+For a repeatable local demo database, run `supabase db reset --local` from
+`backend/` after reviewing `backend/supabase/seed.sql`. This replaces local data
+and creates these local-only accounts:
+
+| role | email | password |
+|---|---|---|
+| Admin | `admin@dayflow.local` | `DayflowDemo7!` |
+| Employee | `employee@dayflow.local` | `DayflowDemo7!` |
+
+Never reuse these credentials or include the local seed in a linked database
+push.
 
 **Environment**
 

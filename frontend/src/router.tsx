@@ -1,50 +1,67 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
-import { DemoSessionProvider } from './context/DemoSession'
+import {
+  AdminRoute,
+  PasswordChangeRoute,
+  ProtectedRoute,
+  PublicOnlyRoute,
+  RootRedirect,
+} from './components/auth/RouteGuards'
 import { AddEmployee } from './pages/app/AddEmployee'
 import { Attendance } from './pages/app/Attendance'
 import { Dashboard } from './pages/app/Dashboard'
 import { Directory } from './pages/app/Directory'
 import { EmployeeProfile } from './pages/app/EmployeeProfile'
 import { TimeOff } from './pages/app/TimeOff'
+import { ChangePassword } from './pages/auth/ChangePassword'
 import { SignIn } from './pages/auth/SignIn'
 import { SignUp } from './pages/auth/SignUp'
 
 /**
  * Integrator's file (Armaan). Do not edit in a page lane — ask.
  *
- * `/` redirects to `/signin`. The team dropped the landing page: this is an
+ * `/` redirects by session state. The team dropped the landing page: this is an
  * internal HR tool nobody reaches without an account, so a marketing page is a
- * screen neither a judge nor a user would open. docs/AUTH.md still lists `/` as
- * a landing route; this file is the authority until that is updated. Once
- * AuthProvider lands (TASKS 2.16) it becomes: authenticated → dashboard,
- * otherwise → sign in.
- *
- * `DemoSessionProvider` is a local stand-in for AuthProvider and is replaced by
- * it in Stage 4. `ProtectedRoute` / `AdminRoute` wrap this shell then; they are
- * absent now because a guard built before AuthProvider is one nobody can test.
+ * screen neither a judge nor a user would open. `docs/AUTH.md` records the
+ * redirect and guard contract.
  */
-const app = (
-  <DemoSessionProvider>
-    <AppShell />
-  </DemoSessionProvider>
-)
-
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/signin" replace /> },
-  { path: '/signin', element: <SignIn /> },
-  { path: '/signup', element: <SignUp /> },
   {
-    element: app,
+    path: '/',
+    element: <RootRedirect />,
+  },
+  {
+    element: <PublicOnlyRoute />,
     children: [
-      { path: '/dashboard', element: <Dashboard /> },
-      { path: '/employees', element: <Directory /> },
-      { path: '/employees/new', element: <AddEmployee /> },
-      { path: '/employees/:id', element: <EmployeeProfile /> },
-      { path: '/profile', element: <EmployeeProfile self /> },
-      { path: '/attendance', element: <Attendance /> },
-      { path: '/time-off', element: <TimeOff /> },
-      { path: '/time-off/approvals', element: <TimeOff /> },
+      { path: '/signin', element: <SignIn /> },
+      { path: '/signup', element: <SignUp /> },
+    ],
+  },
+  {
+    element: <PasswordChangeRoute />,
+    children: [{ path: '/change-password', element: <ChangePassword /> }],
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        element: <AppShell />,
+        children: [
+          { path: '/dashboard', element: <Dashboard /> },
+          { path: '/employees', element: <Directory /> },
+          { path: '/employees/:id', element: <EmployeeProfile /> },
+          { path: '/profile', element: <EmployeeProfile self /> },
+          { path: '/attendance', element: <Attendance /> },
+          { path: '/time-off', element: <TimeOff /> },
+          {
+            element: <AdminRoute />,
+            children: [
+              { path: '/employees/new', element: <AddEmployee /> },
+              { path: '/time-off/approvals', element: <TimeOff /> },
+            ],
+          },
+        ],
+      },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },

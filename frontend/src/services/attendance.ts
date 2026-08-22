@@ -1,148 +1,164 @@
-/** STUB — fixture-backed. Signatures from docs/SERVICES.md. */
-import * as fx from '@/fixtures'
-import { daysInMonth, isWeekend, monthKey, today, workHours } from '@/lib/dates'
-import type { AttendanceDay, AttendanceRow } from '@/types/models'
-import { clone, latency, ServiceError } from './client'
+import { daysInMonth, isWeekend, today, workHours } from '@/lib/dates'
+import type { AttendanceDay, AttendanceRow, AttendanceStatus } from '@/types/models'
+import { ServiceError, supabaseClient, unwrap } from './client'
 
-const name = (id: string) => {
-  const e = fx.byId(id)
-  return e ? `${e.first_name} ${e.last_name}` : 'Unknown'
+const isAttendanceStatus = (value: string): value is AttendanceStatus =>
+  value === 'present' || value === 'half_day' || value === 'absent' || value === 'leave'
+
+function attendanceStatus(value: string): AttendanceStatus {
+  if (!isAttendanceStatus(value)) {
+    throw new ServiceError('Attendance returned an unsupported status.')
+  }
+  return value
 }
 
-const toDay = (r: AttendanceRow): AttendanceDay => ({
-  work_date: r.work_date,
-  employee_id: r.employee_id,
-  employee_name: name(r.employee_id),
-  avatar_url: fx.byId(r.employee_id)?.avatar_url ?? null,
-  check_in: r.check_in,
-  check_out: r.check_out,
-  status: r.status,
-  work_hours: workHours(r.check_in, r.check_out),
-})
-
-export async function todayStatus(employeeId: string) {
-  await latency(140)
-  const row = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === today(),
-  )
+export async function todayStatus() {
+  const { data, error } = await supabaseClient()
+    .from('attendance')
+    .select('*')
+    .eq('work_date', today())
+    .maybeSingle()
+  if (error) throw new ServiceError(error.message, error)
+  const row = data
+    ? ({ ...data, status: attendanceStatus(data.status) } satisfies AttendanceRow)
+    : null
   return {
     checkedIn: Boolean(row?.check_in && !row.check_out),
-    row: row ? clone(row) : null,
+    row: row ? { ...row } : null,
   }
+}
+
+/** One row per employee per day; the server derives identity and timestamps. */
+export async function checkIn(): Promise<AttendanceRow> {
+  const { data, error } = await supabaseClient().rpc('check_in')
+  const row = unwrap({ data, error }, 'Could not check you in.')
+  return { ...row, status: attendanceStatus(row.status) }
+}
+
+export async function checkOut(): Promise<AttendanceRow> {
+  const { data, error } = await supabaseClient().rpc('check_out')
+  const row = unwrap({ data, error }, 'Could not check you out.')
+  return { ...row, status: attendanceStatus(row.status) }
 }
 
 /**
- * One row per employee per day — the unique constraint in docs/SCHEMA.md.
- * A second check-in is an error, not a second row.
- */
-export async function checkIn(employeeId: string): Promise<AttendanceRow> {
-  await latency()
-  const day = today()
-  const existing = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === day,
-  )
-  if (existing?.check_in) throw new ServiceError('You have already checked in today.')
-
-  if (existing) {
-    existing.check_in = new Date().toISOString()
-    existing.status = 'present'
-    fx.presenceById[employeeId] = 'present'
-    return clone(existing)
-  }
-  const row: AttendanceRow = {
-    id: `a-${employeeId}-${day}`,
-    employee_id: employeeId,
-    work_date: day,
-    check_in: new Date().toISOString(),
-    check_out: null,
-    status: 'present',
-    created_at: new Date().toISOString(),
-  }
-  fx.attendance.push(row)
-  fx.presenceById[employeeId] = 'present'
-  return clone(row)
-}
-
-export async function checkOut(employeeId: string): Promise<AttendanceRow> {
-  await latency()
-  const row = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === today(),
-  )
-  if (!row?.check_in) throw new ServiceError('You have not checked in today.')
-  if (row.check_out) throw new ServiceError('You have already checked out today.')
-  row.check_out = new Date().toISOString()
-  return clone(row)
-}
-
-/**
- * Every calendar day of the month up to today, not just the days that have
- * rows. A gap on a working day is an absence and has to be visible; without
- * filling the gaps the table silently hides them.
+ * Reads the caller's RLS-visible rows and fills missing calendar days. Approved
+ * leave explains a working-day gap; any other gap is an absence.
  */
 export async function myAttendance(
   employeeId: string,
   month: string,
 ): Promise<AttendanceDay[]> {
-  await latency()
-  const rows = fx.attendance.filter(
-    (a) => a.employee_id === employeeId && monthKey(a.work_date) === month,
-  )
-  const now = today()
-  return daysInMonth(month)
-    .filter((d) => d <= now)
-    .map((d) => {
-      const row = rows.find((r) => r.work_date === d)
-      if (row) return toDay(row)
-      // No row. Approved leave explains the gap; anything else is an absence.
+  const calendar = daysInMonth(month)
+  if (calendar.length === 0 || !/^\d{4}-\d{2}$/.test(month)) {
+    throw new ServiceError('Choose a valid attendance month.')
+  }
+
+  const visibleDays = calendar.filter((date) => date <= today())
+  if (visibleDays.length === 0) return []
+
+  const firstDate = visibleDays[0]
+  const lastDate = visibleDays[visibleDays.length - 1]
+  const client = supabaseClient()
+  const [attendanceResult, leaveResult, employeeResult] = await Promise.all([
+    client
+      .from('attendance')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .gte('work_date', firstDate)
+      .lte('work_date', lastDate),
+    client
+      .from('leave_requests')
+      .select('start_date, end_date')
+      .eq('employee_id', employeeId)
+      .eq('status', 'approved')
+      .lte('start_date', lastDate)
+      .gte('end_date', firstDate),
+    client
+      .from('employees')
+      .select('first_name, last_name, avatar_url')
+      .eq('id', employeeId)
+      .maybeSingle(),
+  ])
+
+  if (attendanceResult.error) {
+    throw new ServiceError('Could not load your attendance.', attendanceResult.error)
+  }
+  if (leaveResult.error) {
+    throw new ServiceError('Could not load leave dates for attendance.', leaveResult.error)
+  }
+  if (employeeResult.error) {
+    throw new ServiceError('Could not load your attendance profile.', employeeResult.error)
+  }
+
+  const rowsByDate = new Map(attendanceResult.data.map((row) => [row.work_date, row]))
+  const employeeName = employeeResult.data
+    ? `${employeeResult.data.first_name} ${employeeResult.data.last_name}`
+    : 'You'
+  const avatarUrl = employeeResult.data?.avatar_url ?? null
+
+  return visibleDays
+    .map((date): AttendanceDay => {
+      const row = rowsByDate.get(date)
+      if (row) {
+        return {
+          work_date: row.work_date,
+          employee_id: row.employee_id,
+          employee_name: employeeName,
+          avatar_url: avatarUrl,
+          check_in: row.check_in,
+          check_out: row.check_out,
+          status: attendanceStatus(row.status),
+          work_hours: workHours(row.check_in, row.check_out),
+        }
+      }
+
+      const onLeave = leaveResult.data.some(
+        (request) => request.start_date <= date && request.end_date >= date,
+      )
       return {
-        work_date: d,
+        work_date: date,
         employee_id: employeeId,
-        employee_name: name(employeeId),
-        avatar_url: null,
+        employee_name: employeeName,
+        avatar_url: avatarUrl,
         check_in: null,
         check_out: null,
-        status: fx.onApprovedLeave(employeeId, d) ? ('leave' as const) : ('absent' as const),
+        status: onLeave ? 'leave' : 'absent',
         work_hours: null,
       }
     })
     .reverse()
 }
 
-/** Admin/HR: every employee for one day. */
+/** Admin/HR-only company register, enforced by the guarded database RPC. */
 export async function companyAttendance(
   date: string,
   opts: { search?: string } = {},
 ): Promise<AttendanceDay[]> {
-  await latency()
-  const q = opts.search?.trim().toLowerCase() ?? ''
-  return fx.employees
-    .filter((e) => e.is_active)
-    .filter((e) => !q || `${e.first_name} ${e.last_name}`.toLowerCase().includes(q))
-    .map((e) => {
-      const row = fx.attendance.find(
-        (a) => a.employee_id === e.id && a.work_date === date,
-      )
-      if (row) return toDay(row)
-      return {
-        work_date: date,
-        employee_id: e.id,
-        employee_name: `${e.first_name} ${e.last_name}`,
-        avatar_url: e.avatar_url,
-        check_in: null,
-        check_out: null,
-        status: fx.onApprovedLeave(e.id, date) ? ('leave' as const) : ('absent' as const),
-        work_hours: null,
-      }
-    })
+  const { data, error } = await supabaseClient().rpc('list_company_attendance', {
+    p_work_date: date,
+    p_search: opts.search?.trim() || undefined,
+  })
+  const rows = unwrap({ data, error }, 'Could not load company attendance.')
+  return rows.map((row) => ({
+    work_date: row.work_date,
+    employee_id: row.employee_id,
+    employee_name: row.employee_name,
+    avatar_url: row.avatar_url,
+    check_in: row.check_in,
+    check_out: row.check_out,
+    status: attendanceStatus(row.status),
+    work_hours: row.work_hours,
+  }))
 }
 
 export async function attendanceSummary(employeeId: string, month: string) {
   const days = await myAttendance(employeeId, month)
-  const working = days.filter((d) => !isWeekend(d.work_date))
+  const working = days.filter((day) => !isWeekend(day.work_date))
   return {
-    present: working.filter((d) => d.status === 'present').length,
-    absent: working.filter((d) => d.status === 'absent').length,
-    halfDay: working.filter((d) => d.status === 'half_day').length,
-    leave: working.filter((d) => d.status === 'leave').length,
+    present: working.filter((day) => day.status === 'present').length,
+    absent: working.filter((day) => day.status === 'absent').length,
+    halfDay: working.filter((day) => day.status === 'half_day').length,
+    leave: working.filter((day) => day.status === 'leave').length,
   }
 }
