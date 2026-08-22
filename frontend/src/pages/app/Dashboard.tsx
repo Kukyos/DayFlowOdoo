@@ -17,6 +17,7 @@ import { attendanceSummary, todayStatus } from '@/services/attendance'
 import { listEmployees } from '@/services/employees'
 import { myBalances, myRequests, pendingRequests } from '@/services/timeOff'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
+import dashboardIllustration from '@/assets/dashboard-support-illustration.png'
 
 export function Dashboard() {
   const { employee, isPrivileged } = useSession()
@@ -41,7 +42,14 @@ export function Dashboard() {
   const onLeave = data.directory.filter((e) => e.presence === 'leave')
 
   return (
-    <>
+    <div className="relative isolate min-h-[calc(100vh-9rem)] pb-44 sm:pb-52 lg:pb-0">
+      <img
+        src={dashboardIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[calc(50%_-_50vw)] -bottom-10 -z-10 w-[275px] select-none sm:w-[325px] lg:w-[350px]"
+      />
+
       <PageHeader
         title={`Good to see you, ${employee?.first_name}`}
         subtitle={
@@ -91,7 +99,7 @@ export function Dashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {isPrivileged && (
-          <Card>
+          <Card className="bg-surface/85 backdrop-blur-[1px]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="t-h3">Waiting on you</h2>
               <Link to="/time-off">
@@ -125,7 +133,7 @@ export function Dashboard() {
           </Card>
         )}
 
-        <Card>
+        <Card className="bg-surface/85 backdrop-blur-[1px]">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="t-h3">In the office today</h2>
             <Link to="/employees">
@@ -152,7 +160,7 @@ export function Dashboard() {
           )}
         </Card>
 
-        <Card>
+        <Card className="bg-surface/85 backdrop-blur-[1px]">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="t-h3">Your recent requests</h2>
             <Link to="/time-off">
@@ -185,6 +193,6 @@ export function Dashboard() {
           )}
         </Card>
       </div>
-    </>
+    </div>
   )
 }
