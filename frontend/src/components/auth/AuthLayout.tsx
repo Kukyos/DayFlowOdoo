@@ -25,11 +25,11 @@ export function AuthLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
-      <header className="flex items-center justify-between border-b border-border px-5 py-3 sm:px-8">
+      <header className="flex items-center justify-between border-b border-border px-3 py-3 sm:px-8">
         <Link to="/" className="t-h3 font-display tracking-normal" aria-label="Dayflow home">
           Dayflow
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button
             size="sm"
             variant="ghost"
@@ -45,11 +45,11 @@ export function AuthLayout({
                   Sign up
                 </Button>
               </Link>
-              <span className="t-caption text-text-muted">Log in</span>
+              <span className="hidden t-caption text-text-muted sm:inline">Log in</span>
             </>
           ) : (
             <>
-              <span className="t-caption text-text-muted">Sign up</span>
+              <span className="hidden t-caption text-text-muted sm:inline">Sign up</span>
               <Link to="/signin">
                 <Button size="sm" variant="inverted">
                   Log in
