@@ -6,6 +6,8 @@ import { formatTime } from '@/lib/dates'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import { checkIn, checkOut, todayStatus } from '@/services/attendance'
 import { signOut } from '@/services/auth'
+import { getCompany, updateCompany, uploadCompanyLogo } from '@/services/company'
+import type { Company } from '@/types/models'
 import { fullName } from '@/types/models'
 
 const NAV = [
@@ -17,14 +19,27 @@ const NAV = [
 
 export function AppShell() {
   const { employee, isPrivileged, refreshEmployee } = useSession()
+  const [company, setCompany] = useState<Company | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void getCompany().then((next) => {
+      if (active) setCompany(next)
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [])
+
   if (!employee) return null
 
   return (
     <div className="min-h-screen bg-bg text-text">
       <header className="sticky top-0 z-30 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3 lg:px-8">
-          <Link to="/dashboard" className="t-h3 font-display tracking-normal">
-            Dayflow
+          <Link to="/dashboard" className="flex items-center gap-2 t-h3 font-display tracking-normal">
+            {company?.logo_url && (
+              <img src={company.logo_url} alt="" className="h-8 w-8 rounded-control object-contain" />
+            )}
+            {company?.name ?? 'Dayflow'}
           </Link>
 
           <nav className="order-3 flex w-full gap-1 overflow-x-auto lg:order-none lg:w-auto">
@@ -51,6 +66,13 @@ export function AppShell() {
             <AvatarMenu
               name={fullName(employee)}
               role={isPrivileged ? 'Admin / HR' : 'Employee'}
+              avatarUrl={employee.avatar_url}
+              isPrivileged={isPrivileged}
+              onCompanyLogo={async (file) => {
+                const logoUrl = await uploadCompanyLogo(file)
+                const updated = await updateCompany({ logo_url: logoUrl })
+                setCompany(updated)
+              }}
             />
           </div>
         </div>
@@ -124,12 +146,25 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
   )
 }
 
-function AvatarMenu({ name, role }: { name: string; role: string }) {
+function AvatarMenu({
+  name,
+  role,
+  avatarUrl,
+  isPrivileged,
+  onCompanyLogo,
+}: {
+  name: string
+  role: string
+  avatarUrl: string | null
+  isPrivileged: boolean
+  onCompanyLogo: (file: File) => Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const [theme, setThemeState] = useState<Theme>(currentTheme)
   const [accountError, setAccountError] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -155,7 +190,7 @@ function AvatarMenu({ name, role }: { name: string; role: string }) {
         aria-label="Account menu"
         className="rounded-full"
       >
-        <Avatar name={name} size={36} />
+        <Avatar name={name} src={avatarUrl} size={36} />
       </button>
 
       {open && (
@@ -173,6 +208,28 @@ function AvatarMenu({ name, role }: { name: string; role: string }) {
           <MenuItem onClick={() => { setOpen(false); navigate('/change-password') }}>
             Change password
           </MenuItem>
+          {isPrivileged && (
+            <label className="block w-full cursor-pointer rounded-control px-3 py-2 t-caption hover:bg-neutral-fill">
+              {uploadingLogo ? 'Uploading logo…' : 'Change company logo'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                className="sr-only"
+                disabled={uploadingLogo}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  setUploadingLogo(true)
+                  setAccountError(null)
+                  void onCompanyLogo(file)
+                    .catch((cause: unknown) => {
+                      setAccountError(cause instanceof Error ? cause.message : 'Could not update the company logo.')
+                    })
+                    .finally(() => setUploadingLogo(false))
+                }}
+              />
+            </label>
+          )}
           <MenuItem
             onClick={() => {
               setThemeState(toggleTheme())

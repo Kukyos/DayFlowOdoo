@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Avatar,
   Button,
@@ -17,7 +17,7 @@ import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
-import { getEmployee, updateEmployee } from '@/services/employees'
+import { deactivateEmployee, getEmployee, updateEmployee, uploadAvatar } from '@/services/employees'
 import { fullName, isFullEmployee } from '@/types/models'
 import type { DirectoryEmployee, Employee } from '@/types/models'
 
@@ -32,8 +32,10 @@ import type { DirectoryEmployee, Employee } from '@/types/models'
  */
 export function EmployeeProfile({ self = false }: { self?: boolean }) {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { employee: me, isPrivileged, refreshEmployee } = useSession()
   const targetId = self ? me?.id : id
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { status, data, error, reload } = useAsync(
     async () => {
@@ -52,6 +54,17 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
       presence={data.presence}
       isSelf={data.employee.id === me?.id}
       isPrivileged={isPrivileged}
+      actionError={actionError}
+      onDeactivate={async () => {
+        if (!window.confirm(`Deactivate ${fullName(data.employee)}? They will lose access immediately.`)) return
+        setActionError(null)
+        try {
+          await deactivateEmployee(data.employee.id)
+          navigate('/employees', { replace: true })
+        } catch (cause) {
+          setActionError(cause instanceof Error ? cause.message : 'Could not deactivate that employee.')
+        }
+      }}
       onSaved={() => {
         reload()
         void refreshEmployee()
@@ -65,12 +78,16 @@ function ProfileBody({
   presence,
   isSelf,
   isPrivileged,
+  actionError,
+  onDeactivate,
   onSaved,
 }: {
   employee: Employee | DirectoryEmployee
   presence: 'present' | 'leave' | 'absent'
   isSelf: boolean
   isPrivileged: boolean
+  actionError: string | null
+  onDeactivate: () => Promise<void>
   onSaved: () => void
 }) {
   // A tab exists only when the caller may see what is on it. The Salary Info
@@ -102,16 +119,30 @@ function ProfileBody({
         }
         actions={
           !isSelf && (
-            <Link to="/employees">
-              <Button size="sm">Back to directory</Button>
-            </Link>
+            <div className="flex gap-2">
+              {isPrivileged && isFullEmployee(employee) && employee.is_active && (
+                <Button size="sm" variant="danger" onClick={() => { void onDeactivate() }}>
+                  Deactivate
+                </Button>
+              )}
+              <Link to="/employees">
+                <Button size="sm">Back to directory</Button>
+              </Link>
+            </div>
           )
         }
       />
 
+      {actionError && <p role="alert" className="mb-4 t-caption text-danger-ink">{actionError}</p>}
+
       <Card className="mb-8">
         <div className="flex flex-wrap items-center gap-5">
-          <Avatar name={fullName(employee)} src={employee.avatar_url} size={76} />
+          <div className="flex flex-col items-center gap-2">
+            <Avatar name={fullName(employee)} src={employee.avatar_url} size={76} />
+            {isSelf && isFullEmployee(employee) && (
+              <AvatarUpload employee={employee} onSaved={onSaved} />
+            )}
+          </div>
           <div className="min-w-0">
             <p className="t-h2">{fullName(employee)}</p>
             <p className="t-caption mt-1 text-text-muted">
@@ -147,6 +178,42 @@ function ProfileBody({
         )}
       </div>
     </>
+  )
+}
+
+function AvatarUpload({ employee, onSaved }: { employee: Employee; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function select(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      const avatarUrl = await uploadAvatar(file)
+      await updateEmployee(employee.id, { avatar_url: avatarUrl })
+      onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not update your avatar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="text-center">
+      <label className="cursor-pointer t-label text-text-muted hover:text-text">
+        {busy ? 'Uploading…' : 'Change photo'}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          disabled={busy}
+          onChange={(event) => { void select(event.target.files?.[0]) }}
+        />
+      </label>
+      {error && <p role="alert" className="mt-1 max-w-40 t-label text-danger-ink">{error}</p>}
+    </div>
   )
 }
 

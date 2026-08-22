@@ -11,14 +11,16 @@ metadata—sets that role.
 The sign-up request supplies `company_name`, `first_name`, `last_name`, and an
 optional `mobile` value as profile metadata. The auth service adds the internal
 `registration_type = 'company'` discriminator; callers never supply a role.
-Company-logo upload is deferred until the Storage policies are implemented, so
-`companies.logo_url` remains null during this milestone.
+After sign-in, Admin/HR can upload the company logo from the account menu; the
+public sign-up transaction itself does not attempt a pre-session upload.
 
 Employees never self-register. An Admin or HR user creates an employee through a
 server-side operation, which creates `auth.users` and the linked `employees` row
 and returns a cryptographically secure temporary password once. The frontend
 never receives a service-role key, and the temporary password is never stored in
-plaintext by the application.
+plaintext by the application. The authenticated `create-employee` Edge
+Function holds the server credential, checks the caller's live employee role,
+and removes the new Auth user if linking the employee row fails.
 
 | role | access |
 |---|---|

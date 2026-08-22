@@ -114,3 +114,30 @@ attendance and leave SELECT policies were inspected directly. Signed-in
 employee and Admin/HR browser verification still requires private shared-project
 credentials. Security-advisor warnings are limited to the intentional guarded
 browser RPCs and the Dashboard-level leaked-password-protection setting.
+
+Milestones 8–9 were verified on 2026-08-22 with disposable local Auth users
+and real API calls. Ten assertions confirmed one-time temporary-password
+return, forced-change flagging, company-scoped employee creation, own avatar and
+leave-document uploads, denial of another employee's document path, privileged
+signed-document access, denial of employee account creation, denial of
+self-deactivation, and application-data denial after deactivation. Cleanup
+deleted both Auth users and uploaded objects. The linked project is at migration
+`20260822072713_add_storage_buckets_and_policies`; `create-employee` is deployed
+with JWT verification and rejects an unauthenticated linked request with 401.
+Linked schema lint passed. Advisor warnings remain the intentional guarded RPCs,
+including `deactivate_employee()`, plus the Dashboard leaked-password setting.
+Signed-in linked browser verification still requires private dev credentials.
+
+Milestones 10–13 were verified on 2026-08-22 against the local seeded Admin and
+employee accounts. Ten authenticated assertions confirmed the Admin dashboard
+counts 12 active employees, three pending requests, and five checked-in people;
+the employee payload omitted company aggregates and pending-company requests;
+own balances remained visible; coworker wage reads and own wage writes were
+denied; safe own-profile updates and privileged wage reads succeeded. Local
+schema lint plus security and performance advisors reported no issues after the
+employee-policy consolidation. The linked project is at migration
+`20260822080006_consolidate_employee_policies`; linked schema lint and
+performance advisors pass. Linked security warnings remain the intentional,
+internally guarded browser RPCs (now including `get_dashboard_summary()`) and
+the Dashboard leaked-password-protection setting. The deterministic seed is
+local-only and was not pushed to the linked database.

@@ -44,10 +44,3 @@ export function unwrap<T>(
   }
   return result.data
 }
-
-/** Simulates a network round-trip for services that still use local fixtures. */
-export const latency = (ms = 320): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms))
-
-/** Prevents fixture-backed pages from mutating the shared fixture objects. */
-export const clone = <T,>(value: T): T => structuredClone(value)
