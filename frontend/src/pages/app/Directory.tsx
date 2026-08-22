@@ -16,7 +16,6 @@ import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
-import directoryActionIllustration from '@/assets/employee-directory-action-illustration.png'
 import directoryIllustration from '@/assets/employee-directory-illustration.png'
 
 /**
@@ -57,27 +56,7 @@ export function Directory() {
   }, [data, department, q])
 
   return (
-    <div className="relative isolate">
-      {/*
-        Fixed to the viewport corner, not the page's own bottom — same fix as
-        the dashboard's support illustration. Anchoring to a `min-h` wrapper's
-        bottom left a gap whenever the directory's real content (few
-        employees, or a narrow filtered result) didn't reach that forced
-        height. X = `left-*`, Y = `bottom-*`.
-      */}
-      <img
-        src={directoryIllustration}
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none fixed bottom-0 left-3 -z-10 w-[95vw] max-w-[960px] select-none sm:left-8"
-      />
-      <img
-        src={directoryActionIllustration}
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute top-8 right-40 -z-10 hidden w-[200px] select-none lg:block"
-      />
-
+    <>
       <PageHeader
         title="Employees"
         subtitle="Everyone in your company, and whether they are in today."
@@ -143,11 +122,7 @@ export function Directory() {
             </p>
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {employees.map((e) => (
-                <Card
-                  as="li"
-                  key={e.id}
-                  className="bg-surface/65 backdrop-blur-[0.5px] transition-colors hover:bg-neutral-fill"
-                >
+                <Card as="li" key={e.id} className="transition-colors hover:bg-neutral-fill">
                   <Link
                     to={`/employees/${e.id}`}
                     className="flex h-full flex-col gap-4 rounded-card"
@@ -173,6 +148,35 @@ export function Directory() {
             </ul>
           </>
         ))}
-    </div>
+
+      {/*
+        Normal document flow, not absolute or fixed — this image is taller
+        (natively ~560x300, rendered up to 960px wide) than a short directory
+        page's real content, so any "pin to the bottom of a box" trick
+        necessarily pokes up above wherever that box's top happens to be. In a
+        two-row directory that meant overlapping the card grid; in a one-row
+        directory it would poke above the page header entirely. Letting it sit
+        in flow after the grid means it only ever adds height below the real
+        content — never overlaps it, regardless of how many employees there
+        are.
+
+        `w-full` (not a `vw` unit): a normal-flow block sizes against its own
+        container, not the viewport — `main` is padded and capped at 1440px,
+        so a viewport-relative width here would overflow it and cause a
+        horizontal scrollbar. The old `vw` sizing was only correct back when
+        this broke out to `fixed`/`absolute` positioning.
+
+        Left edge flush against the container's own padding (no extra offset):
+        the source PNG crops its leftmost figure at the canvas edge, so any
+        positive offset just adds dead space in front of an already-cropped
+        figure — flush reads as an intentional bleed, not a mistake.
+      */}
+      <img
+        src={directoryIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none mt-10 block w-full max-w-[720px] select-none"
+      />
+    </>
   )
 }
