@@ -13,6 +13,18 @@ export type SignUpCompanyInput = {
   lastName: string
   email: string
   password: string
+  mobile?: string
+}
+
+/**
+ * Sign-up returns no session. Email confirmation is required first, so the
+ * page shows a check-your-email state and the user signs in afterwards
+ * (docs/AUTH.md, docs/SERVICES.md). Returning a Session here would let the app
+ * navigate somebody into the dashboard who cannot yet authenticate.
+ */
+export type SignUpCompanyResult = {
+  userId: string
+  confirmationRequired: true
 }
 
 export type SignUpCompanyResult = {

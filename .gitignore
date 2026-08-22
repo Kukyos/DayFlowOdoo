@@ -14,3 +14,10 @@ dist/
 .vercel
 .DS_Store
 npm-debug.log*
+
+# Real env files and anything downloaded into the repo. `.env.example` is
+# committed on purpose and must stay matchable, so this is not a blanket
+# `.env*` — that would shadow the example everyone copies from.
+.env.local
+.env.*.local
+*.download

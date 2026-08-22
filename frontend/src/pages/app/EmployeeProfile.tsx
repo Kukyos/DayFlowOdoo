@@ -1,0 +1,518 @@
+import { useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import {
+  Avatar,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  PageHeader,
+  PresenceChip,
+  Spinner,
+  Tabs,
+  Textarea,
+  cx,
+} from '@/components/ui'
+import { useSession } from '@/context/DemoSession'
+import { useAsync } from '@/hooks/useAsync'
+import { formatDate } from '@/lib/dates'
+import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
+import { getEmployee, updateEmployee } from '@/services/employees'
+import * as fx from '@/fixtures'
+import { fullName } from '@/types/models'
+import type { Employee } from '@/types/models'
+
+/**
+ * One page for three cases: my own profile, a coworker's profile, and an
+ * admin looking at anybody.
+ *
+ * What separates them is not a prop — it is what the service returns. A
+ * coworker's row arrives with the private and salary columns already null,
+ * because that is what RLS will do. The tabs are built from what is present, so
+ * a restricted field cannot be rendered by accident.
+ */
+export function EmployeeProfile({ self = false }: { self?: boolean }) {
+  const { id } = useParams()
+  const { employee: me, isPrivileged, refresh } = useSession()
+  const targetId = self ? me?.id : id
+
+  const { status, data, error, reload } = useAsync(
+    async () => {
+      if (!targetId || !me) throw new Error('Not signed in.')
+      return getEmployee(targetId, { id: me.id, role: me.role })
+    },
+    [targetId, me?.id, me?.role],
+  )
+
+  if (status === 'loading') return <Spinner label="Loading the profile" />
+  if (status === 'error') return <ErrorState message={error} onRetry={reload} />
+
+  return (
+    <ProfileBody
+      employee={data}
+      isSelf={data.id === me?.id}
+      isPrivileged={isPrivileged}
+      onSaved={() => {
+        reload()
+        refresh()
+      }}
+    />
+  )
+}
+
+function ProfileBody({
+  employee,
+  isSelf,
+  isPrivileged,
+  onSaved,
+}: {
+  employee: Employee
+  isSelf: boolean
+  isPrivileged: boolean
+  onSaved: () => void
+}) {
+  // A tab exists only when the caller may see what is on it. The Salary Info
+  // tab is admin-only per docs/SCHEMA.md, so for an employee it is absent —
+  // not present-and-empty, which would just look broken.
+  const tabs = useMemo(() => {
+    const list = [
+      { id: 'work', label: 'Work Info' },
+      { id: 'resume', label: 'Resume' },
+    ]
+    if (isSelf || isPrivileged) list.push({ id: 'private', label: 'Private Info' })
+    // Own salary is readable; only Admin/HR can change it (TASKS 3.4). A
+    // coworker gets no tab at all, because the service returns their wage as
+    // null — the tab would be empty, which reads as broken rather than denied.
+    if (isSelf || isPrivileged) list.push({ id: 'salary', label: 'Salary Info' })
+    return list
+  }, [isSelf, isPrivileged])
+
+  const [tab, setTab] = useState('work')
+  const active = tabs.some((t) => t.id === tab) ? tab : 'work'
+  const presence = fx.presenceById[employee.id] ?? 'absent'
+
+  return (
+    <>
+      <PageHeader
+        title={isSelf ? 'My Profile' : fullName(employee)}
+        subtitle={
+          [employee.job_position, employee.department].filter(Boolean).join(' · ') ||
+          undefined
+        }
+        actions={
+          !isSelf && (
+            <Link to="/employees">
+              <Button size="sm">Back to directory</Button>
+            </Link>
+          )
+        }
+      />
+
+      <Card className="mb-8">
+        <div className="flex flex-wrap items-center gap-5">
+          <Avatar name={fullName(employee)} src={employee.avatar_url} size={76} />
+          <div className="min-w-0">
+            <p className="t-h2">{fullName(employee)}</p>
+            <p className="t-caption mt-1 text-text-muted">
+              {employee.job_position} · {employee.location}
+            </p>
+            {employee.login_id && (
+              <p className="t-data mt-2 text-text-muted">{employee.login_id}</p>
+            )}
+          </div>
+          <div className="ml-auto flex flex-col items-end gap-2">
+            <PresenceChip presence={presence} />
+            {employee.date_of_joining && (
+              <span className="t-caption text-text-muted">
+                Joined {formatDate(employee.date_of_joining)}
+              </span>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Tabs tabs={tabs} active={active} onChange={setTab} />
+
+      <div className="py-8">
+        {active === 'work' && <WorkInfo employee={employee} />}
+        {active === 'resume' && (
+          <Resume employee={employee} editable={isSelf} onSaved={onSaved} />
+        )}
+        {active === 'private' && (
+          <PrivateInfo employee={employee} editable={isSelf || isPrivileged} onSaved={onSaved} />
+        )}
+        {active === 'salary' && (
+          <SalaryInfo employee={employee} editable={isPrivileged} onSaved={onSaved} />
+        )}
+      </div>
+    </>
+  )
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+
+const Row = ({ label, value }: { label: string; value: string | null | undefined }) => (
+  <div className="flex flex-col gap-1 border-b border-border-soft py-3 sm:flex-row sm:items-baseline sm:gap-6">
+    <span className="t-label w-52 shrink-0 text-text-muted">{label}</span>
+    <span className={cx('t-body', !value && 'text-text-muted')}>{value || '—'}</span>
+  </div>
+)
+
+function WorkInfo({ employee }: { employee: Employee }) {
+  const manager = employee.manager_id ? fx.byId(employee.manager_id) : null
+  const reports = fx.employees.filter((e) => e.manager_id === employee.id)
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      <Card>
+        <h2 className="t-h3 mb-3">Work</h2>
+        <Row label="Job position" value={employee.job_position} />
+        <Row label="Department" value={employee.department} />
+        <Row label="Location" value={employee.location} />
+        <Row label="Work email" value={employee.work_email} />
+        {/* Mobile is nulled for a coworker, so it renders as an em dash. */}
+        <Row label="Mobile" value={employee.mobile} />
+        <Row
+          label="Manager"
+          value={manager ? fullName(manager) : 'No manager on record'}
+        />
+      </Card>
+
+      <Card>
+        <h2 className="t-h3 mb-3">Reports</h2>
+        {reports.length === 0 ? (
+          <p className="t-caption py-3 text-text-muted">Nobody reports to {employee.first_name}.</p>
+        ) : (
+          <ul className="flex flex-col">
+            {reports.map((r) => (
+              <li key={r.id}>
+                <Link
+                  to={`/employees/${r.id}`}
+                  className="flex items-center gap-3 border-b border-border-soft py-3 hover:bg-neutral-fill"
+                >
+                  <Avatar name={fullName(r)} size={34} />
+                  <span className="t-caption">{fullName(r)}</span>
+                  <span className="t-label ml-auto text-text-muted">{r.job_position}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+function Resume({
+  employee,
+  editable,
+  onSaved,
+}: {
+  employee: Employee
+  editable: boolean
+  onSaved: () => void
+}) {
+  const [about, setAbout] = useState(employee.about ?? '')
+  const [skills, setSkills] = useState((employee.skills ?? []).join(', '))
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    setSaved(false)
+    try {
+      await updateEmployee(employee.id, {
+        about,
+        skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
+      })
+      setSaved(true)
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editable) {
+    return (
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card>
+          <h2 className="t-h3 mb-3">About</h2>
+          <p className="t-body text-text-muted">{employee.about || 'Nothing here yet.'}</p>
+        </Card>
+        <Card>
+          <h2 className="t-h3 mb-4">Skills</h2>
+          <SkillList skills={employee.skills} />
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      <Card>
+        <h2 className="t-h3 mb-4">About</h2>
+        <Field label="A short introduction" htmlFor="about">
+          <Textarea id="about" value={about} onChange={(e) => setAbout(e.target.value)} />
+        </Field>
+        <Field
+          label="Skills"
+          htmlFor="skills"
+          hint="Separate them with commas."
+          className="mt-4"
+        >
+          <Input id="skills" value={skills} onChange={(e) => setSkills(e.target.value)} />
+        </Field>
+        <div className="mt-4 flex items-center gap-3">
+          <Button variant="strong" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+          {saved && <span className="t-caption text-text-muted">Saved.</span>}
+        </div>
+      </Card>
+      <Card>
+        <h2 className="t-h3 mb-4">Preview</h2>
+        <p className="t-body">{about || 'Nothing here yet.'}</p>
+        <div className="mt-5">
+          <SkillList skills={skills.split(',').map((s) => s.trim()).filter(Boolean)} />
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+const SkillList = ({ skills }: { skills: string[] | null }) =>
+  !skills || skills.length === 0 ? (
+    <p className="t-caption text-text-muted">No skills listed yet.</p>
+  ) : (
+    <ul className="flex flex-wrap gap-2">
+      {skills.map((s) => (
+        <li
+          key={s}
+          className="rounded-control border border-border px-2.5 py-1 t-label"
+        >
+          {s}
+        </li>
+      ))}
+    </ul>
+  )
+
+function PrivateInfo({
+  employee,
+  editable,
+  onSaved,
+}: {
+  employee: Employee
+  editable: boolean
+  onSaved: () => void
+}) {
+  const [address, setAddress] = useState(employee.address ?? '')
+  const [mobile, setMobile] = useState(employee.mobile ?? '')
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    try {
+      await updateEmployee(employee.id, { address, mobile })
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-2">
+      <Card>
+        <h2 className="t-h3 mb-3">Personal</h2>
+        <Row
+          label="Date of birth"
+          value={employee.date_of_birth ? formatDate(employee.date_of_birth) : null}
+        />
+        <Row label="PAN" value={employee.pan_no} />
+        <Row label="UAN" value={employee.uan_no} />
+        {editable ? (
+          <>
+            <Field label="Mobile" htmlFor="mobile" className="mt-4">
+              <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+            </Field>
+            <Field label="Address" htmlFor="address" className="mt-4">
+              <Textarea
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </Field>
+            <Button variant="strong" className="mt-4" onClick={save} disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Row label="Mobile" value={employee.mobile} />
+            <Row label="Address" value={employee.address} />
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="t-h3 mb-3">Bank</h2>
+        <Row label="Account number" value={employee.bank_account_number} />
+        <Row label="IFSC" value={employee.ifsc_code} />
+        <p className="t-caption mt-4 text-text-muted">
+          Bank details are visible only to you and to HR. They are never part of
+          the company directory.
+        </p>
+      </Card>
+    </div>
+  )
+}
+
+/**
+ * The salary structure — admin and HR only, and the one screen in this build
+ * that is more than a form over a table.
+ *
+ * There is one input, the monthly wage. Everything below it is derived by
+ * `lib/salary.ts` and recomputes as you type, with no save round-trip. The
+ * components always total the wage exactly, because Fixed Allowance is the
+ * remainder and absorbs the rounding.
+ */
+function SalaryInfo({
+  employee,
+  editable,
+  onSaved,
+}: {
+  employee: Employee
+  editable: boolean
+  onSaved: () => void
+}) {
+  const [wage, setWage] = useState(employee.monthly_wage ?? 0)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const breakdown = useMemo(() => computeSalary(wage), [wage])
+
+  async function save() {
+    setBusy(true)
+    setSaved(false)
+    try {
+      await updateEmployee(employee.id, { monthly_wage: wage })
+      setSaved(true)
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[340px_1fr]">
+      <div className="flex flex-col gap-5">
+        <Card>
+          <h2 className="t-h3 mb-4">Monthly wage</h2>
+          {editable ? (
+            <>
+              <Field
+                label="Wage"
+                htmlFor="wage"
+                hint="Every component below is derived from this one figure."
+                error={
+                  breakdown.isValid
+                    ? null
+                    : `Too low for this structure — the fixed components alone exceed it. Minimum is ${formatRupees(MINIMUM_WAGE)}.`
+                }
+              >
+                <Input
+                  id="wage"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={wage || ''}
+                  aria-invalid={!breakdown.isValid}
+                  onChange={(e) => setWage(Number(e.target.value))}
+                  className="t-data"
+                />
+              </Field>
+              <div className="mt-4 flex items-center gap-3">
+                <Button
+                  variant="strong"
+                  onClick={save}
+                  disabled={busy || !breakdown.isValid}
+                >
+                  {busy ? 'Saving…' : 'Save wage'}
+                </Button>
+                {saved && <span className="t-caption text-text-muted">Saved.</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="t-data text-3xl">{formatRupees(wage)}</p>
+              <p className="t-caption mt-2 text-text-muted">
+                Your wage is set by HR. Everything below is derived from it.
+              </p>
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="t-h3 mb-3">Net pay</h2>
+          <p className="t-data text-4xl">{formatRupees(breakdown.net)}</p>
+          <p className="t-caption mt-2 text-text-muted">
+            Gross {formatRupees(breakdown.gross)} less {formatRupees(breakdown.totalDeductions)}{' '}
+            in deductions.
+          </p>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        <Card>
+          <h2 className="t-h3 mb-4">Earnings</h2>
+          <LineTable lines={breakdown.earnings} total={['Gross', breakdown.gross]} />
+        </Card>
+        <Card>
+          <h2 className="t-h3 mb-4">Deductions</h2>
+          <LineTable
+            lines={breakdown.deductions}
+            total={['Total deductions', breakdown.totalDeductions]}
+          />
+        </Card>
+        <Card>
+          <h2 className="t-h3 mb-1">Employer cost</h2>
+          <p className="t-caption mb-3 text-text-muted">
+            Paid by the company on top of the wage — never deducted from it.
+          </p>
+          <LineTable lines={breakdown.employerCost} />
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function LineTable({
+  lines,
+  total,
+}: {
+  lines: Array<{ name: string; amount: number; note: string }>
+  total?: [string, number]
+}) {
+  return (
+    <table className="w-full border-collapse">
+      <tbody>
+        {lines.map((l) => (
+          <tr key={l.name}>
+            <td className="border-b border-border-soft py-2.5 t-caption">
+              {l.name}
+              <span className="t-label ml-2 text-text-muted">{l.note}</span>
+            </td>
+            <td className="border-b border-border-soft py-2.5 text-right t-data">
+              {formatRupees(l.amount)}
+            </td>
+          </tr>
+        ))}
+        {total && (
+          <tr>
+            <td className="pt-3 t-label">{total[0]}</td>
+            <td className="pt-3 text-right t-data font-bold">{formatRupees(total[1])}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  )
+}

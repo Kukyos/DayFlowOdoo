@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
 import { Button, Field, Input } from '@/components/ui'
 import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
@@ -14,7 +14,7 @@ import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
  * assigns `admin` rather than trusting anything the client sends.
  */
 export function SignUp() {
-  const navigate = useNavigate()
+  const [sentTo, setSentTo] = useState<string | null>(null)
   const [form, setForm] = useState({
     companyName: '',
     firstName: '',
@@ -77,6 +77,42 @@ export function SignUp() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (sentTo) {
+    return (
+      <AuthLayout otherAction="signin">
+        <AuthCard
+          title="Confirm your email"
+          footer={
+            <p className="t-caption text-auth-panel-ink">
+              Wrong address?{' '}
+              <button
+                type="button"
+                onClick={() => setSentTo(null)}
+                className="font-bold underline underline-offset-4"
+              >
+                Go back and change it
+              </button>
+            </p>
+          }
+        >
+          <p className="t-body">
+            We sent a confirmation link to <strong>{sentTo}</strong>. Follow it,
+            then sign in — your company and admin account are already created.
+          </p>
+          <p className="t-caption mt-4 text-text-muted">
+            Nothing arrived? Check the spam folder. The link returns you to the
+            sign-in page.
+          </p>
+          <Link to="/signin">
+            <Button variant="strong" className="mt-6 w-full">
+              Go to sign in
+            </Button>
+          </Link>
+        </AuthCard>
+      </AuthLayout>
+    )
   }
 
   return (
