@@ -50,7 +50,7 @@ is the sign-up → landing path working end to end.
 | 2.3 | Theme toggle — in the auth header and the app shell, persists, defaults to system, no flash on load | Armaan | ☑ |
 | 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☑ |
 | 2.5 | UI primitives in `components/ui/index.tsx`: Button, Input, Select, Textarea, Field, Card, Avatar, presence/status/attendance chips, Table, Modal, Tabs, EmptyState, ErrorState, Spinner, PageHeader, StatCard | Armaan | ☑ |
-| 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
+| 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☑ |
 | 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
 | 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
 | 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
