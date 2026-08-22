@@ -113,8 +113,8 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 |---|---|---|---|
 | 3.18 | Analytics dashboard — attendance trend, leave usage, headcount by department | | ☐ |
 | 3.19 | Attendance calendar view | | ☐ |
-| 3.20 | Company settings — name, logo, time-off types, working schedule | | ☐ |
-| 3.21 | In-app notifications on leave approval | | ☐ |
+| 3.20 | Company settings — name, logo, time-off types, working schedule | Praneet | ◐ backend schema, RLS, and service complete; settings page remains |
+| 3.21 | In-app notifications on leave approval | Praneet | ◐ secure notification creation/read API complete; notification UI remains |
 
 ## Stage 4 — Real backend wiring
 

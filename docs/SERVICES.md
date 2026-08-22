@@ -18,6 +18,7 @@ Supabase. If a function is not listed here, it does not exist yet.
 
 **Live through Milestone 9:** company reads/updates, directory/profile,
 employee creation/deactivation, attendance, time off, avatars, company logos,
+company configuration, in-app notifications,
 private leave attachments, and the guarded dashboard summary now call Supabase.
 The unused frontend fixture layer has been removed.
 
@@ -101,6 +102,18 @@ type SignUpCompanyResult = {
 | `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
 | `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
 | `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
+
+## `company.ts`
+
+`getCompany()` returns the caller's company settings. `updateCompany()` lets
+Admin/HR update name, logo, time-off labels, working days, and workday start/end;
+RLS rejects employee writes.
+
+## `notifications.ts`
+
+`listNotifications()`, `unreadNotificationCount()`, `markNotificationRead()`,
+and `markAllNotificationsRead()` operate only on the caller's notification rows.
+The browser cannot create notifications or edit their content.
 
 ## `salary.ts`
 

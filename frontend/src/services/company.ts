@@ -6,7 +6,12 @@ export async function getCompany(): Promise<Company> {
   return unwrap({ data, error }, 'Could not load your company.')
 }
 
-export async function updateCompany(patch: Pick<Partial<Company>, 'name' | 'logo_url'>): Promise<Company> {
+export async function updateCompany(
+  patch: Pick<
+    Partial<Company>,
+    'name' | 'logo_url' | 'time_off_types' | 'working_days' | 'workday_start' | 'workday_end'
+  >,
+): Promise<Company> {
   const company = await getCompany()
   const { data, error } = await supabaseClient()
     .from('companies')

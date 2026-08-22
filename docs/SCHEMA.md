@@ -27,7 +27,12 @@ Created with the first admin during company sign-up.
 | `id` | uuid pk | |
 | `name` | text not null | e.g. `Odoo India` |
 | `logo_url` | text | company-logo Storage URL |
+| `time_off_types` | text[] default paid/sick/unpaid | Labels available in the request form |
+| `working_days` | smallint[] default 1–5 | Sunday = 0 through Saturday = 6 |
+| `workday_start` / `workday_end` | time default 09:00/17:00 | Company working schedule |
 | `created_at` | timestamptz default now() | |
+
+Only an active Admin/HR employee may update their own company's settings.
 
 ## `employees`
 
@@ -124,6 +129,14 @@ or sick request through `review_leave_request()` decrements the matching
 balance in the same database transaction. Unpaid leave changes no balance.
 Re-reviewing an already approved or rejected request fails without changing a
 balance twice.
+
+## `notifications`
+
+Server-created in-app notifications for leave decisions. A notification belongs
+to one employee, optionally links to its `leave_request`, and stores `type`,
+`title`, `message`, nullable `read_at`, and `created_at`. Employees can read only
+their own notifications and may change only `read_at`; the leave-review status
+transition creates the notification in the same transaction.
 
 ## Directory-safe employee RPC
 
