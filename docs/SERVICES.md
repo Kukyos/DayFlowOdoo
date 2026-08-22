@@ -18,9 +18,25 @@ Supabase. If a function is not listed here, it does not exist yet.
 
 ## `auth.ts`
 
+```ts
+type SignUpCompanyInput = {
+  companyName: string
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  mobile?: string
+}
+
+type SignUpCompanyResult = {
+  userId: string
+  confirmationRequired: true
+}
+```
+
 | function | returns | notes |
 |---|---|---|
-| `signUpCompany(input)` | `Session` | Public company registration. Creates the first admin, company, and employee record |
+| `signUpCompany(input)` | `SignUpCompanyResult` | Public company registration. Creates the first admin, company, and employee record; email confirmation is required before a session exists |
 | `signIn(email, password)` | `Session` | Email and password only for the MVP |
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |

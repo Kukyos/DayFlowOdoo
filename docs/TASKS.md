@@ -51,11 +51,11 @@ is the sign-up → landing path working end to end.
 | 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☑ |
 | 2.5 | UI primitives in `components/ui/index.tsx`: Button, Input, Select, Textarea, Field, Card, Avatar, presence/status/attendance chips, Table, Modal, Tabs, EmptyState, ErrorState, Spinner, PageHeader, StatCard | Armaan | ☑ |
 | 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
-| 2.7 | ~~Landing page~~ — **dropped by the team.** Dayflow is an internal tool nobody reaches without an account, so a marketing page is a screen neither a judge nor a user opens. `/` redirects to `/signin` | — | ✖ |
-| 2.8 | Sign In page — email and password, error states, both themes. **Merged to `main`** | Armaan | ☑ |
-| 2.9 | Sign Up page — company registration only, per `AUTH.md`. Logo upload lands with Storage in Stage 4. **Merged to `main`** | Armaan | ☑ |
-| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☐ |
-| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ☐ |
+| 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
+| 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
+| 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
+| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ `companies` and `employees` auth foundation added; attendance and leave remain |
+| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ own-employee and own-company reads added; remaining tables and linked two-user verification remain |
 | 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
 | 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☐ |
 | 2.12b | `employee_directory` view with company scoping and only its documented safe columns | Praneet | ☐ |
