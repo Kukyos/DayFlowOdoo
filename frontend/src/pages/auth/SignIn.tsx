@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
+import { DemoCredentials } from '@/components/auth/DemoCredentials'
 import { Button, Field, Input } from '@/components/ui'
 import { emailProblem, signIn } from '@/services/auth'
 
@@ -55,6 +56,17 @@ export function SignIn() {
 
   return (
     <AuthLayout otherAction="signup">
+      <DemoCredentials
+        onUse={(demoEmail, demoPassword) => {
+          setEmail(demoEmail)
+          setPassword(demoPassword)
+          // Clear a stale "wrong credentials" banner from a previous attempt,
+          // so the form doesn't show an error next to freshly-filled fields.
+          setError(null)
+          setTouched(false)
+        }}
+      />
+
       <AuthCard
         title="Log in to your account"
         footer={
@@ -83,7 +95,6 @@ export function SignIn() {
               type="email"
               autoComplete="username"
               autoFocus
-              placeholder="ananya.iyer@odoo.in"
               value={email}
               aria-invalid={Boolean(emailError)}
               onChange={(e) => setEmail(e.target.value)}

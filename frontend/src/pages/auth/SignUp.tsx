@@ -157,7 +157,6 @@ export function SignUp() {
               <Input
                 id="firstName"
                 autoComplete="given-name"
-                placeholder="Ananya"
                 value={form.firstName}
                 onChange={set('firstName')}
                 onBlur={blur('firstName')}
@@ -167,7 +166,6 @@ export function SignUp() {
               <Input
                 id="lastName"
                 autoComplete="family-name"
-                placeholder="Iyer"
                 value={form.lastName}
                 onChange={set('lastName')}
                 onBlur={blur('lastName')}
@@ -180,7 +178,6 @@ export function SignUp() {
               id="signup-email"
               type="email"
               autoComplete="username"
-              placeholder="ananya.iyer@odoo.in"
               value={form.email}
               aria-invalid={Boolean(emailError)}
               onChange={set('email')}

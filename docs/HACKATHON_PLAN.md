@@ -17,7 +17,7 @@ document wins. Read §2, §5, §8, and §11 before writing any code.
 | Problem statement | Human Resource Management System (see below) |
 | Product name | **Dayflow** — *Every workday, perfectly aligned.* |
 | Repository | https://github.com/Kukyos/DayFlowOdoo |
-| Live production URL | _(Vercel, set in Stage 1)_ |
+| Live production URL | https://dayflow-odoo-sand.vercel.app/ |
 | Supabase project | _(shared project, set in Stage 1 — Praneet)_ |
 | Integrator (owns `main`) | Armaan |
 | Backend / data layer | Praneet |

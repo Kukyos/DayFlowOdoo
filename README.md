@@ -1,68 +1,129 @@
 # Dayflow
 
-**Every workday, perfectly aligned.**
+### Every workday, perfectly aligned.
 
 A human resource management system that keeps the four facts a company actually
-runs on in one place, and makes them agree with each other: who works here, who
-showed up today, who is on leave, and what each person is owed at the end of the
-month.
+runs on in one place, and makes them agree with each other: **who works here,
+who showed up today, who is on leave, and what each person is owed at the end of
+the month.**
 
-> **Setup reference for now — this becomes the showcase README in Stage 5.**
-> Live link, hero screenshot, feature highlights, architecture note and the team
-> table go at the top once there is a finished app to photograph.
+### 🔗 [**Open the live app →**](https://dayflow-odoo-sand.vercel.app/)
+
+Sign in with either demo account below — the sign-in page fills them for you.
+
+![Dayflow employee directory](docs/screenshots/directory.png)
+
+---
+
+## Try it
+
+Two seeded accounts. The sign-in page also carries a **"Demo logins for
+testing"** panel that fills either one in a single click, so nothing here needs
+retyping.
+
+| Role | Email | Password |
+|---|---|---|
+| ![ADMIN / HR](https://img.shields.io/badge/ADMIN%20%2F%20HR-31e992?style=for-the-badge&labelColor=000000) | `odootestadmin@gmail.com` | `DayflowDemo7!` |
+| ![EMPLOYEE](https://img.shields.io/badge/EMPLOYEE-bed4fb?style=for-the-badge&labelColor=000000) | `odootestemployee@gmail.com` | `DayflowDemo7!` |
+
+Sign in as **admin** to see the whole company — every salary, the approval
+queue, employee creation. Sign in as **employee** to see the same app from the
+other side: own attendance, own leave, own salary, and nothing belonging to
+anyone else. The difference between those two views is enforced in the database,
+not in the interface.
+
+> These are throwaway demo accounts holding seeded data. Delete them, and the
+> reveal panel in `components/auth/DemoCredentials.tsx`, before this app ever
+> holds real employee records.
+
+![Dayflow sign in](docs/screenshots/sign-in.png)
 
 ---
 
 ## What it does
 
-- **Employee directory** — a card grid with live presence: 🟢 in the office,
-  ✈️ on leave, 🟡 absent. Derived from attendance and approved leave, never a
-  stale status column.
-- **Profiles** — Work, Resume, Private Info and Salary Info live on the same
-  employee record. RLS keeps private and salary data to the employee and
-  Admin/HR.
-- **Attendance** — check in and check out from the header; day-wise records with
-  derived work hours; Admin/HR see the whole company for any given day.
-- **Time off** — paid, sick, and unpaid requests; the paid/sick balances live on
-  the employee record and HR approvals update them.
-- **Salary structure** — one wage figure in, six components out, recomputed live.
-  Basic, HRA, standard allowance, performance bonus, LTA, and a fixed allowance
-  that absorbs the remainder so the components always total the wage exactly.
-Employees are created by HR, not by self-registration. The required sign-in path
-is email and password: HR receives a temporary password once, and the employee
-must replace it at first sign-in. No separate login ID is generated.
+### The directory knows who is actually in
+
+Every employee as a card, with a live presence indicator: 🟢 in the office,
+✈️ on leave, 🟡 absent. It is **derived at read time** from attendance and
+approved leave — there is no `status` column to go stale the moment somebody
+checks in.
+
+### Attendance is the register, not a log
+
+![Attendance](docs/screenshots/attendance.png)
+
+Check in and out from the header. An employee sees their own month day by day
+with derived work hours; Admin and HR see the entire company for any single day.
+A gap covered by approved leave reads as **leave**, not as an absence — the
+register and the directory never disagree about the same person.
+
+### Time off, as a year at a glance
+
+![Time off calendar](docs/screenshots/time-off-calendar.png)
+
+A full twelve-month calendar with approved, pending and rejected days colour
+coded, public holidays alongside, and the same requests available as a list for
+remarks, certificates and cancelling. Paid, sick and unpaid are separate;
+approving a request moves the balance exactly once, inside one transaction.
+
+### One wage in, the whole structure out
+
+Type a monthly wage and the six components recompute live — Basic, HRA, standard
+allowance, performance bonus, LTA, and a fixed allowance that **absorbs the
+remainder so the components always total the wage to the paisa.** On ₹50,000:
+Basic ₹25,000, HRA ₹12,500, gross exactly ₹50,000, net ₹46,800 after PF and
+professional tax.
+
+Admin and HR set it. An employee sees their own breakdown read-only and cannot
+see anyone else's at all.
+
+### A dashboard that answers the morning question
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+Headcount, who is in, what is waiting on you — or, as an employee, your own
+attendance and remaining balances.
+
+---
 
 ## Stack
 
-React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel
+**React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel**
 
-No Next.js, no Express. Supabase is the backend and `frontend/src/services/` is
+No Next.js, no Express. Supabase *is* the backend; `frontend/src/services/` is
 the contract in front of it.
 
 ## Architecture
 
 ```
 frontend/src/
-  components/ui/      shared primitives
+  components/ui/      shared primitives — every page builds from these
   components/layout/  app shell, header, nav
   pages/              one folder per screen
   services/           the only place Supabase is imported
   lib/salary.ts       the salary engine — a pure function, no I/O
-  lib/theme.ts        light/dark, persisted
-  router.tsx          integrator's file — every route has a slot
+  lib/dates.ts        working-day maths, shared so counts cannot disagree
   context/            AuthProvider
   types/database.ts   generated from the schema, never hand-edited
 backend/supabase/
-  migrations/       schema, RLS, functions
+  migrations/         schema, RLS, functions
+  functions/          server-side employee creation
 docs/
 ```
 
 **Pages never import Supabase.** They call services; services call Supabase.
-Security lives in row-level policies, not in route guards — a guard hides a
-screen, it does not stop a request.
+One person owns that boundary, which is what let four people build pages in
+parallel without colliding on the data layer.
 
-The salary engine is a pure function over a monthly wage. The Salary Info screen
-recomputes the fixed MVP breakdown locally, with no additional salary tables.
+**Security lives in row-level policies, not in route guards.** A guard hides a
+screen; it does not stop a request. Every rule that matters — an employee cannot
+read a colleague's salary, cannot edit their own role, cannot approve their own
+leave — is a policy in the database, and the interface merely agrees with it.
+
+The salary engine is a pure function over a single wage, which is why the Salary
+screen recomputes on every keystroke with no round-trip, and why it is the one
+piece of logic in the build carrying its own test.
 
 ## Team
 
@@ -70,11 +131,15 @@ recomputes the fixed MVP breakdown locally, with no additional salary tables.
 |---|---|
 | **Armaan** | Integrator — `main`, design system, UI primitives, router, shell, deploy |
 | **Praneet** | Backend — schema, RLS, seed data, services, generated types |
-| **Pooja** | Pages |
-| **Athira** | Pages |
+| **Pooja** | Pages, illustration and visual polish |
+| **Athira** | Pages, auth surfaces and profile features |
+
+---
 
 <details>
-<summary><strong>Setup</strong></summary>
+<summary><strong>Setup, environment and local demo data</strong></summary>
+
+### Run it
 
 ```bash
 cd frontend
@@ -83,33 +148,7 @@ cp .env.example .env.local   # fill in the Supabase keys
 npm run dev
 ```
 
-### Demo seed data
-
-For a repeatable local demo database, run the following from `backend/` after
-reviewing `backend/supabase/seed.sql`:
-
-```bash
-supabase db reset --local
-```
-
-This replaces **local** database data and creates the Neam Tull demo company.
-All demo accounts use the same password: `DayflowDemo7!`
-
-| role | employee | email | position | department | manager | joined |
-|---|---|---|---|---|---|---|
-| Admin | Praneet Tigga | `praneettigga@gmail.com` | admin | management | — | 06 Aug 2024 |
-| Employee | Armaan Mohamed | `amohamed@karunya.edu.in` | Integrator | Engineer | Praneet Tigga | 01 Nov 2024 |
-| Employee | Poojashree Ravichandar | `poojashree@karunya.edu.in` | Frontend Developer | Engineering | Praneet Tigga | 06 Jan 2025 |
-| Employee | Athira Arun | `athiraarun@karunya.edu.in` | Quality Assurance Engineer | Engineering | Praneet Tigga | 03 Feb 2025 |
-
-All seeded employees are based in Coimbatore. The seed also includes current
-attendance history and sample leave requests for a useful demo dashboard.
-
-The hosted DayFlowOdoo project has been aligned to these same four accounts.
-Do not reuse `DayflowDemo7!` for real users; create employees through the app
-or use unique passwords before sharing access.
-
-**Environment**
+### Environment
 
 | var | what |
 |---|---|
@@ -117,26 +156,53 @@ or use unique passwords before sharing access.
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key. The anon key only — the service role key never reaches the browser |
 
 Everyone runs against the **same shared Supabase project**: one schema, one
-source of truth, no drift across laptops. Only the backend owner runs migrations,
-and destructive changes get announced first.
+source of truth, no drift across laptops. Only the backend owner runs
+migrations, and destructive changes get announced first.
 
-**Deploying**
+### Local demo database
+
+For a repeatable local demo, review `backend/supabase/seed.sql` and then run
+from `backend/`:
+
+```bash
+supabase db reset --local
+```
+
+This replaces **local** database data and creates the demo company, with current
+attendance history and sample leave requests. All seeded accounts use the same
+password: `DayflowDemo7!`
+
+| role | employee | email | position | department |
+|---|---|---|---|---|
+| Admin | Praneet Tigga | `praneettigga@gmail.com` | admin | management |
+| Employee | Armaan Mohamed | `amohamed@karunya.edu.in` | Integrator | Engineering |
+| Employee | Poojashree Ravichandar | `poojashree@karunya.edu.in` | Frontend Developer | Engineering |
+| Employee | Athira Arun | `athiraarun@karunya.edu.in` | Quality Assurance Engineer | Engineering |
+
+Do not reuse `DayflowDemo7!` for real users — create employees through the app,
+which issues a one-time temporary password the employee must replace at first
+sign-in.
+
+### Deploying
 
 `vercel.json` lives at the repo root and builds `frontend/` itself, so when
-linking the project **leave Root Directory as the repo root**. Vercel tends to
+linking the project **leave Root Directory as the repo root.** Vercel tends to
 suggest `frontend`, since that is where the only `package.json` is — take that
-suggestion and the SPA rewrite is ignored, the build still goes green, and every
-deep-link refresh 404s in production.
+suggestion and the SPA rewrite is silently ignored: the build still goes green,
+the landing page still loads, and every deep-link refresh 404s in production.
 
-**Checks**
+### Checks
 
 ```bash
 npm run lint
-npm run build     # runs tsc -b, so type errors fail it
+npm run build     # runs tsc -b, so a type error fails it
+node --experimental-strip-types src/lib/salary.test.ts
 ```
 
-**Docs** — `docs/HACKATHON_PLAN.md` is the operating manual. `docs/SCHEMA.md` and
-`docs/SERVICES.md` are the data contract; if something is not in them, it does
+### Docs
+
+`docs/HACKATHON_PLAN.md` is the operating manual. `docs/SCHEMA.md` and
+`docs/SERVICES.md` are the data contract — if something is not in them, it does
 not exist. `docs/BUILD_RULES.md` goes into your local, gitignored `CLAUDE.md`
 before you run an AI session on this repo.
 

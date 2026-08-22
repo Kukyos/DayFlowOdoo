@@ -23,10 +23,10 @@ something only verified in theory.
 | 1.1 | Read the PDF and the wireframes in `materials/`. Whole team | all | ☐ |
 | 1.2 | Docs commit: this file, `SCHEMA.md`, `SERVICES.md`, `AUTH.md`, `DESIGN.md`, `HACKATHON_PLAN.md`, `BUILD_RULES.md`, `README.md` | Armaan | ☑ |
 | 1.3 | Vite + React + TS + Tailwind + Router scaffold in `frontend/` | Armaan | ☑ |
-| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ◐ |
+| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ☑ |
 | 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☑ |
-| 1.6 | Vercel project linked; production tracks `main`; branch previews on. **Leave Root Directory as the repo root** — see the note below | Armaan | ☐ |
-| 1.6a | **Verify the SPA rewrite on the deployed preview**: open a deep link such as `/employees/x` and hard-refresh. 200, not 404. This is the only test that exercises `vercel.json`, and it closes 1.4 | Armaan | ☐ |
+| 1.6 | Vercel project linked; production tracks `main`; branch previews on. **Leave Root Directory as the repo root** — see the note below | Armaan | ☑ https://dayflow-odoo-sand.vercel.app/ |
+| 1.6a | **Verify the SPA rewrite on the deployed preview**: open a deep link such as `/employees/x` and hard-refresh. 200, not 404. This is the only test that exercises `vercel.json`, and it closes 1.4 | Armaan | ☑ `/employees/abc123`, `/attendance`, `/time-off` all 200 and serve the app HTML |
 | 1.7 | Supabase project created, keys shared with the team | Praneet | ☐ |
 | 1.8 | Each builder copies `docs/BUILD_RULES.md` into a local, gitignored `CLAUDE.md` | all | ☐ |
 
