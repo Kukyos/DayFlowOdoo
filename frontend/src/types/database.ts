@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       attendance: {
@@ -184,6 +209,66 @@ export type Database = {
           },
         ]
       }
+      leave_requests: {
+        Row: {
+          attachment_url: string | null
+          created_at: string
+          days: number
+          employee_id: string
+          end_date: string
+          id: string
+          leave_type: string
+          remarks: string | null
+          review_comment: string | null
+          reviewed_by: string | null
+          start_date: string
+          status: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          created_at?: string
+          days: number
+          employee_id: string
+          end_date: string
+          id?: string
+          leave_type: string
+          remarks?: string | null
+          review_comment?: string | null
+          reviewed_by?: string | null
+          start_date: string
+          status?: string
+        }
+        Update: {
+          attachment_url?: string | null
+          created_at?: string
+          days?: number
+          employee_id?: string
+          end_date?: string
+          id?: string
+          leave_type?: string
+          remarks?: string | null
+          review_comment?: string | null
+          reviewed_by?: string | null
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -225,6 +310,48 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_leave_request: {
+        Args: {
+          p_attachment_url?: string
+          p_end_date: string
+          p_leave_type: string
+          p_remarks?: string
+          p_start_date: string
+        }
+        Returns: {
+          attachment_url: string | null
+          created_at: string
+          days: number
+          employee_id: string
+          end_date: string
+          id: string
+          leave_type: string
+          remarks: string | null
+          review_comment: string | null
+          reviewed_by: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "leave_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      list_company_attendance: {
+        Args: { p_search?: string; p_work_date?: string }
+        Returns: {
+          avatar_url: string
+          check_in: string
+          check_out: string
+          employee_id: string
+          employee_name: string
+          status: string
+          work_date: string
+          work_hours: number
+        }[]
+      }
       list_employee_directory: {
         Args: never
         Returns: {
@@ -241,6 +368,29 @@ export type Database = {
           skills: string[]
           work_email: string
         }[]
+      }
+      review_leave_request: {
+        Args: { p_comment?: string; p_request_id: string; p_status: string }
+        Returns: {
+          attachment_url: string | null
+          created_at: string
+          days: number
+          employee_id: string
+          end_date: string
+          id: string
+          leave_type: string
+          remarks: string | null
+          review_comment: string | null
+          reviewed_by: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "leave_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
@@ -370,6 +520,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

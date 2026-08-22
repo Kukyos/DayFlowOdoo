@@ -16,6 +16,10 @@ Supabase. If a function is not listed here, it does not exist yet.
 - During page work, service stubs use `frontend/src/fixtures/` but retain these
   exact return shapes. Fixtures are removed once the real service is wired.
 
+**Live through Milestone 7:** directory/profile, attendance, and time off now
+call Supabase. Company, employee creation/deactivation, departments, and media
+uploads still use fixtures or remain unimplemented for their later milestones.
+
 ## `auth.ts`
 
 `getSession()` is asynchronous in the Supabase implementation because the
@@ -74,7 +78,7 @@ type SignUpCompanyResult = {
 | `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
 | `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
 | `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
-| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Admin/HR only |
+| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Calls the guarded Admin/HR-only company register RPC |
 | `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |
 
 ## `timeOff.ts`
@@ -83,12 +87,12 @@ type SignUpCompanyResult = {
 |---|---|---|
 | `myBalances()` | `{ paid: number; sick: number }` | Reads the caller's employee balances |
 | `myRequests()` | `LeaveRequest[]` | |
-| `createRequest(input)` | `LeaveRequest` | Calculates and sends `days`; type is `paid`, `sick`, or `unpaid` |
+| `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid` |
 | `cancelRequest(id)` | `void` | Own pending request only |
 | `uploadAttachment(file)` | `string` | `leave-documents` bucket; optional for MVP |
 | `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
 | `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
-| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; `status` is `approved` or `rejected`; approval adjusts balance atomically |
+| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
 
 ## `salary.ts`
 
