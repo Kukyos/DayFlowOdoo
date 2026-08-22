@@ -1,22 +1,11 @@
 /**
- * STUB — Praneet replaces the bodies with Supabase calls (TASKS 2.16 / 2.18).
- * The signatures are from docs/SERVICES.md and must not change.
- *
- * Sign-in is email + password only. docs/AUTH.md puts pre-authentication
- * login-ID resolution out of scope, so there is no "login ID or email" field.
- *
- * Employees never self-register: `signUpCompany` is the only public
- * registration path, and it creates a company plus its first admin.
+ * Authentication service boundary. Pages never import the Supabase client
+ * directly; they receive data or a safe, user-facing error from this module.
  */
-import { latency, ServiceError } from './client'
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
+import { ServiceError, supabaseClient } from './client'
 
-const SESSION_KEY = 'dayflow-demo-session'
-
-export type Session = {
-  userId: string
-  email: string
-  companyName: string
-}
+export type Session = SupabaseSession
 
 export type SignUpCompanyInput = {
   companyName: string
@@ -26,13 +15,16 @@ export type SignUpCompanyInput = {
   password: string
 }
 
-/** Mirrors Supabase's own rule so the message matches once it is wired. */
+export type SignUpCompanyResult = {
+  userId: string
+  confirmationRequired: boolean
+}
+
+/** Mirrors the configured Supabase minimum so feedback appears before submit. */
 export const PASSWORD_MIN = 8
 
 export function passwordProblem(password: string): string | null {
-  if (password.length < PASSWORD_MIN) {
-    return `Use at least ${PASSWORD_MIN} characters.`
-  }
+  if (password.length < PASSWORD_MIN) return `Use at least ${PASSWORD_MIN} characters.`
   if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
     return 'Use at least one letter and one number.'
   }
@@ -44,62 +36,66 @@ export function emailProblem(email: string): string | null {
 }
 
 export async function signIn(email: string, password: string): Promise<Session> {
-  await latency()
-  if (!email || !password) throw new ServiceError('Enter your email and password.')
-  if (emailProblem(email)) throw new ServiceError('Enter a valid email address.')
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail || !password) throw new ServiceError('Enter your email and password.')
+  if (emailProblem(normalizedEmail)) throw new ServiceError('Enter a valid email address.')
 
-  // The real implementation returns Supabase's generic failure here. Never
-  // distinguish "no such account" from "wrong password" — that turns the form
-  // into a way of finding out who works here.
-  if (password.length < PASSWORD_MIN) {
+  const { data, error } = await supabaseClient().auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  })
+  if (error || !data.session) {
+    // Do not reveal whether an account exists, is unconfirmed, or has a wrong password.
     throw new ServiceError('Those details do not match an account.')
   }
 
-  const session: Session = { userId: 'e-01', email, companyName: 'Odoo India' }
-  persist(session)
-  return session
+  return data.session
 }
 
-export async function signUpCompany(input: SignUpCompanyInput): Promise<Session> {
-  await latency(520)
+export async function signUpCompany(input: SignUpCompanyInput): Promise<SignUpCompanyResult> {
+  const normalizedEmail = input.email.trim().toLowerCase()
   const problem =
-    emailProblem(input.email) ??
+    emailProblem(normalizedEmail) ??
     passwordProblem(input.password) ??
     (input.companyName.trim() ? null : 'Enter your company name.') ??
     (input.firstName.trim() && input.lastName.trim() ? null : 'Enter your full name.')
   if (problem) throw new ServiceError(problem)
 
-  const session: Session = {
-    userId: 'e-01',
-    email: input.email,
-    companyName: input.companyName,
+  const { data, error } = await supabaseClient().auth.signUp({
+    email: normalizedEmail,
+    password: input.password,
+    options: {
+      // This URL must also be present in Supabase Auth's Redirect URL allow-list.
+      emailRedirectTo: `${window.location.origin}/signin`,
+      data: {
+        registration_type: 'company',
+        company_name: input.companyName.trim(),
+        first_name: input.firstName.trim(),
+        last_name: input.lastName.trim(),
+      },
+    },
+  })
+  if (error || !data.user) {
+    // The database trigger deliberately returns generic Auth errors. Keep the
+    // UI generic too so signup cannot be used to enumerate existing accounts.
+    throw new ServiceError('We could not create your account. Check the details and try again.')
   }
-  persist(session)
-  return session
+
+  return { userId: data.user.id, confirmationRequired: data.session === null }
 }
 
 export async function signOut(): Promise<void> {
-  await latency(120)
-  try {
-    localStorage.removeItem(SESSION_KEY)
-  } catch {
-    /* blocked storage — nothing to clear */
-  }
+  const { error } = await supabaseClient().auth.signOut()
+  if (error) throw new ServiceError('Could not sign you out. Please try again.', error)
 }
 
-export function getSession(): Session | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    return raw ? (JSON.parse(raw) as Session) : null
-  } catch {
-    return null
-  }
+export async function getSession(): Promise<Session | null> {
+  const { data, error } = await supabaseClient().auth.getSession()
+  if (error) throw new ServiceError('Could not restore your session.', error)
+  return data.session
 }
 
-function persist(session: Session): void {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  } catch {
-    /* blocked storage — the session simply will not survive a reload */
-  }
+export function onAuthChange(callback: (event: AuthChangeEvent, session: Session | null) => void): () => void {
+  const { data } = supabaseClient().auth.onAuthStateChange(callback)
+  return () => data.subscription.unsubscribe()
 }
