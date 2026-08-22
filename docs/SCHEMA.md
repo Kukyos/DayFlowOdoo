@@ -10,6 +10,12 @@ auth.users → employees → attendance
 companies → employees
 ```
 
+**Implementation status (2026-08-22):** the repository and linked project both
+have only `20260822043456_create_auth_company_foundation.sql`. It creates the
+company/employee foundation through `is_active`; `must_change_password`,
+attendance, leave, directory access, and later-tier tables remain future tracked
+migrations.
+
 ## `companies`
 
 Created with the first admin during company sign-up.
@@ -55,6 +61,7 @@ information, salary, leave-allocation, or login-counter tables.
 | `paid_leave_balance` | numeric(5,2) default 24 | Mutated only when paid leave is approved |
 | `sick_leave_balance` | numeric(5,2) default 7 | Mutated only when sick leave is approved |
 | `is_active` | boolean default true | Soft deactivation |
+| `must_change_password` | boolean default false | Set for HR-created accounts until the temporary password is replaced |
 | `created_at` | timestamptz default now() | |
 
 `admin` and `hr` are privileged. The role is database data, never read from
@@ -72,7 +79,8 @@ user-editable `auth.users.raw_user_meta_data` for authorization.
 - PF: 12% of Basic; Professional Tax: ₹200
 
 The components are display values. No payroll, salary-component, or payslip
-records are stored in the MVP.
+records are stored in the MVP. An employee may read their own `monthly_wage` but
+cannot update it; Admin/HR may read and update wages for their own company.
 
 ## `attendance`
 
@@ -153,6 +161,8 @@ the browser; never expose a service-role key.
 An employee update policy must not allow changing `role`, `company_id`,
 `monthly_wage`, leave balances, `is_active`, or another employee's identity.
 Use a trigger or a dedicated update function to enforce that column boundary.
+It must also prevent employees from clearing `must_change_password` directly;
+only the protected password-change completion operation may do that.
 Leave approval should be a protected transactional function that validates the
 reviewer and request company, changes status, stamps `reviewed_by`, and adjusts
 the appropriate balance exactly once.
@@ -160,8 +170,12 @@ the appropriate balance exactly once.
 ## Auth and Storage
 
 The first public company registration creates its admin, company, and employee
-row. Employees are created by Admin/HR through a server-side invite operation;
-employees do not self-register. Email and password are the required sign-in
+row. Employees are created by Admin/HR through a server-side operation that
+creates the Auth user and employee row, generates a cryptographically secure
+temporary password, and returns that password once to the creating Admin/HR.
+The service-role key and plaintext password are never stored in the browser or
+database. The employee must replace the temporary password at first sign-in.
+Employees do not self-register. Email and password are the required sign-in
 path. A generated `login_id` is useful for display but is not an authentication
 dependency in this MVP.
 

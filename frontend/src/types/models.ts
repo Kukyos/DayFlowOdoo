@@ -57,13 +57,14 @@ export type Employee = {
   pan_no: string | null
   uan_no: string | null
 
-  // Salary — null unless privileged. The employee does NOT see their own wage;
-  // docs/SCHEMA.md keeps the Salary Info tab admin-only.
+  // Salary — visible to the employee for their own row and to Admin/HR.
+  // A coworker's directory-safe profile receives null.
   monthly_wage: number | null
 
   paid_leave_balance: number | null
   sick_leave_balance: number | null
   is_active: boolean
+  must_change_password: boolean
   created_at: string
 }
 

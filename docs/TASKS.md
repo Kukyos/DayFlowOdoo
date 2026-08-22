@@ -51,10 +51,11 @@ is the sign-up → landing path working end to end.
 | 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☑ |
 | 2.5 | UI primitives in `components/ui/index.tsx`: Button, Input, Select, Textarea, Field, Card, Avatar, presence/status/attendance chips, Table, Modal, Tabs, EmptyState, ErrorState, Spinner, PageHeader, StatCard | Armaan | ☑ |
 | 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
-| 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
+| 2.7 | Landing page | Pooja | ✖ dropped — Dayflow is an internal HR tool and `/` redirects to sign in |
 | 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
 | 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
-| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ `companies` and `employees` auth foundation added; attendance and leave remain |
+| 2.9a | Backend Milestone 0 — linked/local migration parity, auth/salary contract decisions, and RLS test matrix locked | Praneet | ☑ linked and local history both at `20260822043456`; see `RLS_TEST_MATRIX.md` |
+| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ `companies` and `employees` auth foundation added; password flag, attendance, and leave remain |
 | 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ own-employee and own-company reads added; remaining tables and linked two-user verification remain |
 | 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
 | 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☐ |
@@ -64,7 +65,7 @@ is the sign-up → landing path working end to end.
 | 2.15 | **Two seeded dev accounts, admin and employee, logged into from a real browser** | Praneet | ☐ |
 | 2.16 | `AuthProvider` + `ProtectedRoute` + `AdminRoute` | Praneet | ☐ |
 | 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ☐ |
-| 2.18 | Server-side employee invite flow; verify the browser never receives a service-role key | Praneet + Armaan | ☐ |
+| 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change; verify the browser never receives a service-role key | Praneet + Armaan | ☐ |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
 | 2.20 | `pages/Scaffold.tsx` deleted. `pages/NotBuiltYet.tsx` replaces it — delete that once every route on `main` has a real page | Armaan | ◐ |
 
@@ -95,9 +96,9 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ◐ |
 | 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ |
 | 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ |
-| 3.10 | **Add Employee** (privileged) — form and server-side Supabase invite. Optional generated login ID; initial paid/sick balances and monthly wage live on the employee row | Athira | ◐ |
+| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Show the temporary password once; optional login ID, balances, and wage live on the employee row | Athira | ◐ |
 | 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ |
-| 3.12 | **Change password** — normal authenticated account setting | Athira | ☐ |
+| 3.12 | **Change password** — normal account setting and mandatory first-login flow for HR-created employees | Athira | ☐ |
 
 ### Tier 2 — what makes it competitive
 
@@ -128,7 +129,7 @@ lane had in-flight work on the same pages. Expect this stage to be ugly.
 | 4.3 | Attendance, both views, and the check in/out control | Praneet | ☐ |
 | 4.4 | Time off, both views | Praneet | ☐ |
 | 4.5 | Salary Info calculation and wage updates | Praneet | ☐ |
-| 4.6 | Add employee through the server-side invite flow | Praneet | ☐ |
+| 4.6 | Add employee through server-side temporary-password creation and force the first password change | Praneet | ☐ |
 | 4.7 | Dashboard aggregates | Praneet | ☐ |
 | 4.8 | Delete `fixtures/` once nothing imports it | Praneet | ☐ |
 

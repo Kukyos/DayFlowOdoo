@@ -16,9 +16,9 @@ import { SignUp } from './pages/auth/SignUp'
  * `/` redirects to `/signin`. The team dropped the landing page: this is an
  * internal HR tool nobody reaches without an account, so a marketing page is a
  * screen neither a judge nor a user would open. docs/AUTH.md still lists `/` as
- * a landing route; this file is the authority until that is updated. Once
- * AuthProvider lands (TASKS 2.16) it becomes: authenticated → dashboard,
- * otherwise → sign in.
+ * a landing route; `docs/AUTH.md` now records the redirect contract. Once
+ * AuthProvider lands (TASKS 2.16), authenticated users go to the dashboard and
+ * everyone else goes to sign in.
  *
  * `DemoSessionProvider` is a local stand-in for AuthProvider and is replaced by
  * it in Stage 4. `ProtectedRoute` / `AdminRoute` wrap this shell then; they are

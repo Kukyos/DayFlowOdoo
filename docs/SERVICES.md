@@ -44,7 +44,7 @@ type SignUpCompanyResult = {
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |
 | `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
-| `changePassword(newPassword)` | `void` | |
+| `changePassword(newPassword)` | `void` | Updates the Auth password and clears `must_change_password` through a protected operation |
 | `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
 
 ## `company.ts`
@@ -60,8 +60,8 @@ type SignUpCompanyResult = {
 | function | returns | notes |
 |---|---|---|
 | `listEmployees({ search?, department? })` | `EmployeeCard[]` | Reads `employee_directory`; includes derived `presence` |
-| `getEmployee(id)` | `EmployeeProfile` | Own full profile or the directory-safe profile of a coworker; private/salary fields are null unless RLS permits them |
-| `createEmployee(input)` | `{ employee, loginId }` | Admin/HR only. Sends an invite through the server-side employee-creation flow |
+| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
+| `createEmployee(input)` | `{ employee, loginId, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
 | `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
 | `uploadAvatar(file)` | `string` | `avatars` bucket |

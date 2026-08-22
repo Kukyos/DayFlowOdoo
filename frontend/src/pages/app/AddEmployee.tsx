@@ -73,7 +73,7 @@ export function AddEmployee() {
     }
     setBusy(true)
     try {
-      const { employee, loginId } = await createEmployee({
+      const { employee, loginId, temporaryPassword } = await createEmployee({
         ...form,
         manager_id: form.manager_id || null,
       })
@@ -82,7 +82,7 @@ export function AddEmployee() {
         loginId,
         // Generated server-side in the real flow and returned once. Never
         // stored in plaintext, never shown again after this screen.
-        password: `Df-${Math.random().toString(36).slice(2, 10)}`,
+        password: temporaryPassword,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create that employee.')
