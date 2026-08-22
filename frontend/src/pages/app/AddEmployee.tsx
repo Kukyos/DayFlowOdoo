@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
 import { useSession } from '@/context/session'
-import * as fx from '@/fixtures'
+import { useAsync } from '@/hooks/useAsync'
 import { today } from '@/lib/dates'
 import { formatRupees, MINIMUM_WAGE, computeSalary } from '@/lib/salary'
-import { createEmployee, departments } from '@/services/employees'
+import { createEmployee, listEmployees } from '@/services/employees'
 import { fullName } from '@/types/models'
 import type { Role } from '@/types/models'
 
@@ -25,6 +25,7 @@ export function AddEmployee() {
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const directory = useAsync(() => listEmployees(), [])
 
   const [form, setForm] = useState({
     first_name: '',
@@ -59,6 +60,14 @@ export function AddEmployee() {
   }
 
   const wageValid = computeSalary(form.monthly_wage).isValid
+  const departmentOptions = Array.from(new Set([
+    'Engineering',
+    'Design',
+    'HR',
+    'Sales',
+    'Support',
+    ...((directory.data ?? []).map((employee) => employee.department).filter(Boolean) as string[]),
+  ])).sort()
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -182,7 +191,7 @@ export function AddEmployee() {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Department" htmlFor="department">
               <Select id="department" value={form.department} onChange={set('department')}>
-                {departments().map((d) => (
+                {departmentOptions.map((d) => (
                   <option key={d}>{d}</option>
                 ))}
               </Select>
@@ -194,7 +203,7 @@ export function AddEmployee() {
           <Field label="Manager" htmlFor="manager_id" className="mt-4">
             <Select id="manager_id" value={form.manager_id} onChange={set('manager_id')}>
               <option value="">No manager</option>
-              {fx.employees.map((e) => (
+              {(directory.data ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
                   {fullName(e)}
                 </option>

@@ -57,7 +57,7 @@ is the sign-up → landing path working end to end.
 | 2.9a | Backend Milestone 0 — linked/local migration parity, auth/salary contract decisions, and RLS test matrix locked | Praneet | ☑ linked and local history both at `20260822043456`; see `RLS_TEST_MATRIX.md` |
 | 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☑ all four MVP tables and guarded operations are migrated locally and remotely |
 | 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ directory/profile/attendance/leave boundaries covered by rollback tests; linked two-user browser verification remains |
-| 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
+| 2.12 | Optional generated login ID for HR display only — no counter table or login-ID authentication | Praneet | ☑ generated server-side during employee creation |
 | 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☑ `enforce_employee_update_boundary` trigger |
 | 2.12b | Company-scoped directory-safe RPC with only documented safe columns | Praneet | ☑ `list_employee_directory()` |
 | 2.12c | Leave-review transaction: set reviewer/status and decrement the matching leave balance exactly once | Praneet | ☑ guarded `review_leave_request()` with rollback-tested one-time balance movement |
@@ -65,7 +65,7 @@ is the sign-up → landing path working end to end.
 | 2.15 | **Two seeded dev accounts, admin and employee, logged into from a real browser** | Praneet | ☐ |
 | 2.16 | `AuthProvider` + `ProtectedRoute` + `AdminRoute` | Praneet | ◐ implemented; signed-out browser redirect verified, authenticated admin/employee browser verification remains |
 | 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ◐ generated from the verified linked schema and build-tested; commit remains |
-| 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change; verify the browser never receives a service-role key | Praneet + Armaan | ☐ |
+| 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change; verify the browser never receives a service-role key | Praneet + Armaan | ◐ Edge Function deployed and local authenticated E2E passed; linked signed-in browser flow remains |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
 | 2.20 | `pages/Scaffold.tsx` deleted. `pages/NotBuiltYet.tsx` replaces it — delete that once every route on `main` has a real page | Armaan | ◐ |
 
@@ -89,14 +89,14 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 |---|---|---|---|
 | 3.1 | **Employee directory** — card grid, avatar, name, position, department, presence indicator, search. Cards open the profile read-only. *The hero screenshot* | Pooja | ◐ |
 | 3.2 | **Employee profile — view mode**, tabs: Work Info · Resume · Private Info · Salary Info. Coworker profiles use directory-safe data only | Pooja | ◐ |
-| 3.3 | **My Profile — edit mode**, permitted profile/private fields, avatar upload, and skills | Pooja | ◐ |
+| 3.3 | **My Profile — edit mode**, permitted profile/private fields, avatar upload, and skills | Pooja | ◐ live profile and Storage avatar upload wired; signed-in browser verification remains |
 | 3.4 | **Salary Info tab** — one monthly wage and the fixed six-component MVP calculation. Admin/HR can edit wage; employees can view only their own | Athira | ◐ |
 | 3.5 | **Check In / Check Out** in the header — flips the presence dot red→green, idempotent per day | Athira | ◐ |
 | 3.6 | **Attendance — employee view**, day-wise for the current month: date, day, check in, check out, derived work hours, and present/absent/leave counts | Athira | ◐ live service wired; signed-in browser verification remains |
 | 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ◐ guarded live RPC wired; signed-in Admin/HR browser verification remains |
-| 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ live balances/request/cancel wired; Storage attachment upload remains |
+| 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ live balances/request/cancel and private attachment upload wired; signed-in browser verification remains |
 | 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ live company reads and approve/reject wired; comment-entry UI and signed-in browser verification remain |
-| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Show the temporary password once; optional login ID, balances, and wage live on the employee row | Athira | ◐ |
+| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Show the temporary password once; optional login ID, balances, and wage live on the employee row | Athira | ◐ live Edge Function and one-time credential result wired; linked signed-in browser verification remains |
 | 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ |
 | 3.12 | **Change password** — normal account setting and mandatory first-login flow for HR-created employees | Athira | ◐ page, Auth update, database trigger, and route enforcement implemented; live forced-flow browser verification remains |
 

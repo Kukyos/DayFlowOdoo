@@ -153,3 +153,43 @@ export async function reviewRequest(
   const reviewed = unwrap({ data, error }, 'Could not record that leave decision.')
   return requestById(reviewed.id)
 }
+
+const ATTACHMENT_TYPES: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
+export async function uploadAttachment(file: File): Promise<string> {
+  const extension = ATTACHMENT_TYPES[file.type]
+  if (!extension) throw new ServiceError('Use a PDF, JPG, or PNG certificate.')
+  if (file.size > 10 * 1024 * 1024) {
+    throw new ServiceError('The certificate must be 10 MB or smaller.')
+  }
+
+  const client = supabaseClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError || !userData.user) throw new ServiceError('Sign in before uploading a certificate.')
+  const { data: employee, error: employeeError } = await client
+    .from('employees')
+    .select('company_id')
+    .eq('id', userData.user.id)
+    .single()
+  if (employeeError || !employee) throw new ServiceError('Could not resolve your company.')
+
+  const path = `${employee.company_id}/${userData.user.id}/${crypto.randomUUID()}.${extension}`
+  const { error } = await client.storage.from('leave-documents').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new ServiceError('Could not upload that certificate.', error)
+  return path
+}
+
+export async function signedAttachmentUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseClient()
+    .storage
+    .from('leave-documents')
+    .createSignedUrl(path, 60)
+  return unwrap({ data, error }, 'Could not open that certificate.').signedUrl
+}

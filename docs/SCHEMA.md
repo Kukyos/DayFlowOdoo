@@ -13,8 +13,9 @@ companies → employees
 **Implementation status (2026-08-22):** the repository and linked project have
 the auth/company foundation, forced-password-change guard, company-scoped safe
 directory RPC, controlled employee updates, live attendance actions/history,
-and the employee/admin leave workflow through atomic review. Employee creation,
-Storage, seed data, and later-tier tables remain future milestones.
+the employee/admin leave workflow through atomic review, privileged employee
+creation/deactivation, and company-scoped Storage. Seed data and later-tier
+tables remain future milestones.
 
 ## `companies`
 
@@ -184,8 +185,12 @@ Employees do not self-register. Email and password are the required sign-in
 path. A generated `login_id` is useful for display but is not an authentication
 dependency in this MVP.
 
-Storage buckets: `avatars`, `leave-documents`, and `company-logos`. Bucket
-policies must scope uploads and updates to the caller's company/employee path.
+Storage buckets: public `avatars` and `company-logos`, plus private
+`leave-documents`. Object paths begin with the caller's company ID; employee
+assets add the employee ID as the second segment. Avatars are limited to JPG,
+PNG, or WebP (5 MB), logos also allow SVG (5 MB), and leave documents allow
+PDF, JPG, or PNG (10 MB). Private leave documents are opened through
+authorization-checked, short-lived signed URLs.
 
 ## Seed data
 

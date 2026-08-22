@@ -16,9 +16,10 @@ Supabase. If a function is not listed here, it does not exist yet.
 - During page work, service stubs use `frontend/src/fixtures/` but retain these
   exact return shapes. Fixtures are removed once the real service is wired.
 
-**Live through Milestone 7:** directory/profile, attendance, and time off now
-call Supabase. Company, employee creation/deactivation, departments, and media
-uploads still use fixtures or remain unimplemented for their later milestones.
+**Live through Milestone 9:** company reads/updates, directory/profile,
+employee creation/deactivation, attendance, time off, avatars, company logos,
+and private leave attachments now call Supabase. Dashboard-only fixture data
+and seed data remain for later milestones.
 
 ## `auth.ts`
 
@@ -89,7 +90,8 @@ type SignUpCompanyResult = {
 | `myRequests()` | `LeaveRequest[]` | |
 | `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid` |
 | `cancelRequest(id)` | `void` | Own pending request only |
-| `uploadAttachment(file)` | `string` | `leave-documents` bucket; optional for MVP |
+| `uploadAttachment(file)` | `string` | Stores a private object path in `leave-documents`; optional for MVP |
+| `signedAttachmentUrl(path)` | `string` | Short-lived URL for an authorized employee or Admin/HR viewer |
 | `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
 | `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
 | `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
