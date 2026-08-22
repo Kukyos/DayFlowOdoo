@@ -400,7 +400,7 @@ here with access to `OLD`:
 ```sql
 create function guard_employee_update() returns trigger as $$
 begin
-  if not is_privileged() then
+  if auth.uid() is not null and not is_privileged() then
     new.role            := old.role;
     new.company_id      := old.company_id;
     new.login_id        := old.login_id;
@@ -417,6 +417,14 @@ end $$ language plpgsql security definer;
 Silently restoring beats raising: the self-edit form sends the whole row, so
 rejecting any untouched protected field would fail every legitimate save. What
 lands is the intersection of what was sent and what the caller may change.
+
+**The `auth.uid() is not null` guard is load-bearing.** Outside a PostgREST
+request — a seed script, a migration that updates `employees`, an Edge Function
+using `service_role` — there is no JWT, so `is_privileged()` is false and the
+trigger would quietly restore `role`, `company_id` and `login_id` to their old
+values. Quietly: no error, and the update reports success. Seeding would appear
+to work and produce a company of employees who are all still whatever they were
+inserted as.
 
 The list above is a **denylist of protected columns**, so a new sensitive column
 is unprotected until someone adds it here. Whoever adds a column to `employees`

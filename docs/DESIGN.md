@@ -20,9 +20,9 @@ reads like a typeset sheet rather than a stack of floating panels.
 
 Typography carries the personality: a heavy condensed display face, a light
 flared serif for section headings, and a wide-tracked grotesque for everything
-else. Accent colour appears as **highlighter punctuation** — small filled
-swatches on chips and cards, always with black text on top, never as a page
-background and never as coloured text.
+else. Accent colour appears as **highlighter punctuation** — flat fills carrying
+black text, never a page background and never coloured text. In this app those
+fills are load-bearing: they are the presence indicators (§2.4).
 
 This suits Dayflow better than a conventional SaaS look. An HR tool is a
 document people read every day — a directory, a register, a payslip. An inked
@@ -30,10 +30,11 @@ editorial grid is what a well-set register looks like.
 
 ---
 
-## 2. Three conflicts with the reference, and how they resolve
+## 2. Four conflicts with the reference, and how they resolve
 
 The reference is a sparse editorial site. Dayflow is a dense utility with a
-stated dark-mode requirement. These are the three places it does not transfer
+stated dark-mode requirement, and its palette has to carry meaning here that it
+only carries decoration there. These are the four places it does not transfer
 directly. **Decided; do not re-litigate them mid-build.**
 
 ### 2.1 Dark mode — the reference forbids it, we ship it anyway
@@ -83,6 +84,32 @@ Two gaps, both fixed below rather than worked around:
   effectively invisible and fails WCAG badly. It is used here for *decorative
   icon strokes only*. Placeholders use `--text-muted`.
 
+### 2.4 There is no accent-filled button, and the accents are status colours
+
+`--accent` and `--warning` are the same lime; `--accent-alt` and `--info` are the
+same cornflower. That is not an oversight in the palette — the palette has three
+accents and this app has three presence states, so they are the same three
+colours doing one job.
+
+Which means **any decorative use of lime or cornflower at chip scale collides
+with a status.** The directory is exactly where they would meet: primary buttons
+and absent chips in one viewport, in the hero screenshot.
+
+The reference already settles this. Its guide says *"primary action: no distinct
+CTA colour"*, and it calls the outlined button *"the button you reach for
+first"*; accent fills are scoped to *"featured or category"* surfaces. So:
+
+- **The primary button is the outlined one.** Ink border, no fill,
+  `--neutral-fill` on hover. There is no accent-filled button variant in this
+  system — emphasis comes from position and border weight, not colour.
+- **Accent fills appear only on card-sized surfaces**, where scale and context
+  make them read as a featured panel rather than as a status. Never on a chip,
+  a badge, a button, or a nav item.
+- Active nav is a 1px underline, per the reference. Not a fill.
+
+This is also the plan's own lesson: a one-accent design system cannot carry a
+categorical palette, so do not try to make it carry two meanings at once.
+
 ---
 
 ## 3. Tokens
@@ -103,8 +130,8 @@ in a page is a bug in dark mode.
 | `--border-soft` | `#d2ddd2` | `#3a3a35` | table rules and repeated hairlines, where full ink is too loud |
 | `--text` | `#000000` | `#f2f2ee` | body copy, headings |
 | `--text-muted` | `#55554f` | `#a3a39b` | labels, helper text, placeholders, timestamps |
-| `--accent` | `#edfe5e` | `#edfe5e` | highlighter lime. Primary action fill, active nav, featured cards |
-| `--accent-alt` | `#bed4fb` | `#bed4fb` | cornflower. Secondary chips, category fills |
+| `--accent` | `#edfe5e` | `#edfe5e` | highlighter lime. **Featured card fills only** — see §2.4 |
+| `--accent-alt` | `#bed4fb` | `#bed4fb` | cornflower. Featured card fills only |
 | `--accent-ink` | `#000000` | `#000000` | text on any accent fill. **Always black, both themes** |
 | `--neutral-fill` | `#edf0e9` | `#26261f` | button hover, disabled fill, zebra rows |
 | `--success` | `#31e992` | `#31e992` | 🟢 present |
@@ -115,13 +142,8 @@ in a page is a bug in dark mode.
 
 **Status colours are semantic and reserved.** `--success`, `--warning`, `--info`
 and `--danger` mean presence and request state, nowhere else. The moment a green
-button appears, a green dot stops meaning "present". Note that `--accent` and
-`--warning` are the same lime — so **do not use the accent as a chip fill next to
-status chips**, or "absent" and "featured" become the same colour.
-
-`--info` doubles as the leave indicator because cornflower reads as "away"
-against the warm palette. It is the one accent that is also a status; keep it out
-of decorative use.
+button appears, a green dot stops meaning "present". They overlap with the
+accents by design — read §2.4 before using either.
 
 ### Type
 
@@ -195,23 +217,25 @@ Built once by Armaan in `components/ui/`, consumed everywhere. If a primitive is
 missing, ask — do not style in place.
 
 - **Button** — transparent fill, 1px `--border`, 6px radius, 12/20px padding,
-  `--text-caption` at weight 500. Hover fills `--neutral-fill`. The *primary*
-  variant fills `--accent` with `--accent-ink` text behind the same black border,
-  so it reads as inked-on-colour rather than as a flat shape.
+  `--text-caption` at weight 500. Hover fills `--neutral-fill`. **This is the
+  only button.** Emphasis comes from position and a 2px border, never from an
+  accent fill — see §2.4. Destructive actions use `--danger-ink` for the border
+  and label, still with no fill.
 - **Card** — `--surface` fill, 1px `--border`, 12px radius, 20px padding. No
   shadow, ever. The featured variant swaps the fill for `--accent` or
-  `--accent-alt` and keeps the border.
+  `--accent-alt` and keeps the border — **the only place an accent fill appears
+  in the app.**
 - **Input** — `--surface` fill, 1px `--border`, 6px radius. Focus **thickens the
   border to 2px** rather than adding a coloured ring — that is the system's
   language. Ensure the 2px does not shift layout; reserve it with an inset
   box-shadow or a transparent 2px border at rest.
-- **Chip / Badge** — `--text-label`, all caps, 6px radius, optional accent or
-  status fill with black text. Status chips carry a shape or a label as well as a
-  colour (see §5).
+- **Chip / Badge** — `--text-label`, all caps, 6px radius, 1px `--border`.
+  **A filled chip means a status and nothing else** (§2.4). Every status chip
+  carries a glyph or a label as well as its colour (§5).
 - **Table** — `--border-soft` rules, 40px rows, `--text-data` for every numeric
   column, right-aligned numbers, left-aligned text.
 - **Nav** — full-width bar on `--bg` with a 1px `--border` bottom rule. Active
-  item carries a 1px underline. No pill, no fill.
+  item carries a 1px underline. No pill, no fill, no accent.
 
 ---
 
@@ -228,8 +252,13 @@ one place colour carries meaning on its own. **Colour is never the only cue:**
 
 Each renders as a small filled chip with a glyph and black text, or as a dot with
 an accessible label and a tooltip when space is tight. **A colourblind judge and
-a grayscale screenshot must both still read the directory** — and the difference
-between spring green and highlighter lime is exactly the pair that fails.
+a grayscale screenshot must both still read the directory.**
+
+The pair that fails is **present and on leave**: spring green and cornflower sit
+at relative luminance 0.61 and 0.65, which is indistinguishable in grayscale.
+Lime is far lighter at 0.89 and separates cleanly from both. The ● / ✈ glyph
+split is what carries the distinction, which is why the glyph is not decoration
+and not optional.
 
 ---
 
@@ -238,7 +267,7 @@ between spring green and highlighter lime is exactly the pair that fails.
 **Do**
 
 - Draw structure with a 1px `--border`. Let the ink define shapes.
-- Keep accents as small fills behind black text.
+- Keep accent fills on card-sized surfaces only; keep status fills on chips.
 - Give every interactive element a visible focus state in both themes.
 - Give every table an empty state with a sentence and, where it fits, the action
   that fills it.
@@ -250,6 +279,8 @@ between spring green and highlighter lime is exactly the pair that fails.
 - No box-shadows for elevation. Buttons get the one shadow; cards never do.
 - No gradients. The system is flat by design.
 - No accent colour as text, on either canvas. Fills behind black text only.
+- No accent-filled button, chip, badge or nav item. §2.4 — the accents are the
+  status colours, and a lime button makes a lime "absent" chip meaningless.
 - No second grotesque next to Inter. No display type set in Inter Bold — display
   belongs to Anton, headings to Instrument Serif.
 - No raw hex in a page. No inline `style` for colour.

@@ -133,7 +133,7 @@ honest multi-author history comes from.
 | 5.2 | Responsive pass at 375px | all | ☐ |
 | 5.3 | Design consistency sweep across all pages | Armaan | ☐ |
 | 5.4 | **Both themes checked on every screen** | Armaan | ☐ |
-| 5.4a | Status chips legible in grayscale and with colour-vision deficiency simulated — spring green vs highlighter lime is the pair that fails | Armaan | ☐ |
+| 5.4a | Status chips legible in grayscale and with colour-vision deficiency simulated. **Present vs on leave is the failing pair** — spring green 0.61 and cornflower 0.65 relative luminance. Check the glyphs carry it | Armaan | ☐ |
 | 5.5 | Keyboard reachability and focus rings | all | ☐ |
 | 5.6 | Zero console errors, fresh browser, production link | all | ☐ |
 | 5.7 | RLS re-verified: log in as an employee, confirm the salary tab is genuinely denied and not merely hidden | Praneet | ☐ |
