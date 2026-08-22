@@ -1,0 +1,16 @@
+# Source materials — problem statement, wireframes, references. Not shipped.
+materials/
+
+# Per-builder local AI instructions. Never committed (see docs/BUILD_RULES.md).
+CLAUDE.md
+AGENTS.md
+.claude/
+
+node_modules/
+dist/
+.env
+.env.local
+*.local
+.vercel
+.DS_Store
+npm-debug.log*
