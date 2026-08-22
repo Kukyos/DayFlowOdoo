@@ -83,17 +83,31 @@ cp .env.example .env.local   # fill in the Supabase keys
 npm run dev
 ```
 
-For a repeatable local demo database, run `supabase db reset --local` from
-`backend/` after reviewing `backend/supabase/seed.sql`. This replaces local data
-and creates these local-only accounts:
+### Demo seed data
 
-| role | email | password |
-|---|---|---|
-| Admin | `admin@dayflow.local` | `DayflowDemo7!` |
-| Employee | `employee@dayflow.local` | `DayflowDemo7!` |
+For a repeatable local demo database, run the following from `backend/` after
+reviewing `backend/supabase/seed.sql`:
 
-Never reuse these credentials or include the local seed in a linked database
-push.
+```bash
+supabase db reset --local
+```
+
+This replaces **local** database data and creates the Neam Tull demo company.
+All demo accounts use the same password: `DayflowDemo7!`
+
+| role | employee | email | position | department | manager | joined |
+|---|---|---|---|---|---|---|
+| Admin | Praneet Tigga | `praneettigga@gmail.com` | admin | management | — | 06 Aug 2024 |
+| Employee | Armaan Mohamed | `amohamed@karunya.edu.in` | Integrator | Engineer | Praneet Tigga | 01 Nov 2024 |
+| Employee | Poojashree Ravichandar | `poojashree@karunya.edu.in` | Frontend Developer | Engineering | Praneet Tigga | 06 Jan 2025 |
+| Employee | Athira Arun | `athiraarun@karunya.edu.in` | Quality Assurance Engineer | Engineering | Praneet Tigga | 03 Feb 2025 |
+
+All seeded employees are based in Coimbatore. The seed also includes current
+attendance history and sample leave requests for a useful demo dashboard.
+
+The hosted DayFlowOdoo project has been aligned to these same four accounts.
+Do not reuse `DayflowDemo7!` for real users; create employees through the app
+or use unique passwords before sharing access.
 
 **Environment**
 
