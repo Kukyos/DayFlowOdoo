@@ -86,17 +86,17 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 
 | # | Page | Owner | Done |
 |---|---|---|---|
-| 3.1 | **Employee directory** — card grid, avatar, name, position, department, presence indicator, search. Cards open the profile read-only. *The hero screenshot* | Pooja | ☐ |
-| 3.2 | **Employee profile — view mode**, tabs: Work Info · Resume · Private Info · Salary Info. Coworker profiles use directory-safe data only | Pooja | ☐ |
-| 3.3 | **My Profile — edit mode**, permitted profile/private fields, avatar upload, and skills | Pooja | ☐ |
-| 3.4 | **Salary Info tab** — one monthly wage and the fixed six-component MVP calculation. Admin/HR can edit wage; employees can view only their own | Athira | ☐ |
-| 3.5 | **Check In / Check Out** in the header — flips the presence dot red→green, idempotent per day | Athira | ☐ |
-| 3.6 | **Attendance — employee view**, day-wise for the current month: date, day, check in, check out, derived work hours, and present/absent/leave counts | Athira | ☐ |
-| 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ☐ |
-| 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ☐ |
-| 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ☐ |
-| 3.10 | **Add Employee** (privileged) — form and server-side Supabase invite. Optional generated login ID; initial paid/sick balances and monthly wage live on the employee row | Athira | ☐ |
-| 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ☐ |
+| 3.1 | **Employee directory** — card grid, avatar, name, position, department, presence indicator, search. Cards open the profile read-only. *The hero screenshot* | Pooja | ◐ |
+| 3.2 | **Employee profile — view mode**, tabs: Work Info · Resume · Private Info · Salary Info. Coworker profiles use directory-safe data only | Pooja | ◐ |
+| 3.3 | **My Profile — edit mode**, permitted profile/private fields, avatar upload, and skills | Pooja | ◐ |
+| 3.4 | **Salary Info tab** — one monthly wage and the fixed six-component MVP calculation. Admin/HR can edit wage; employees can view only their own | Athira | ◐ |
+| 3.5 | **Check In / Check Out** in the header — flips the presence dot red→green, idempotent per day | Athira | ◐ |
+| 3.6 | **Attendance — employee view**, day-wise for the current month: date, day, check in, check out, derived work hours, and present/absent/leave counts | Athira | ◐ |
+| 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ◐ |
+| 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ |
+| 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ |
+| 3.10 | **Add Employee** (privileged) — form and server-side Supabase invite. Optional generated login ID; initial paid/sick balances and monthly wage live on the employee row | Athira | ◐ |
+| 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ |
 | 3.12 | **Change password** — normal authenticated account setting | Athira | ☐ |
 
 ### Tier 2 — what makes it competitive

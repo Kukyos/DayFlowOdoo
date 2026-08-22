@@ -24,6 +24,18 @@ export type SignUpCompanyInput = {
   lastName: string
   email: string
   password: string
+  mobile?: string
+}
+
+/**
+ * Sign-up returns no session. Email confirmation is required first, so the
+ * page shows a check-your-email state and the user signs in afterwards
+ * (docs/AUTH.md, docs/SERVICES.md). Returning a Session here would let the app
+ * navigate somebody into the dashboard who cannot yet authenticate.
+ */
+export type SignUpCompanyResult = {
+  userId: string
+  confirmationRequired: true
 }
 
 /** Mirrors Supabase's own rule so the message matches once it is wired. */
@@ -60,7 +72,9 @@ export async function signIn(email: string, password: string): Promise<Session> 
   return session
 }
 
-export async function signUpCompany(input: SignUpCompanyInput): Promise<Session> {
+export async function signUpCompany(
+  input: SignUpCompanyInput,
+): Promise<SignUpCompanyResult> {
   await latency(520)
   const problem =
     emailProblem(input.email) ??
@@ -69,13 +83,9 @@ export async function signUpCompany(input: SignUpCompanyInput): Promise<Session>
     (input.firstName.trim() && input.lastName.trim() ? null : 'Enter your full name.')
   if (problem) throw new ServiceError(problem)
 
-  const session: Session = {
-    userId: 'e-01',
-    email: input.email,
-    companyName: input.companyName,
-  }
-  persist(session)
-  return session
+  // No session, and none persisted. The real flow creates the auth user,
+  // company and first admin atomically, then waits for the confirmation link.
+  return { userId: 'pending-confirmation', confirmationRequired: true }
 }
 
 export async function signOut(): Promise<void> {
