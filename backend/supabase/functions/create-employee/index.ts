@@ -2,6 +2,7 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
 
 type Role = "admin" | "hr" | "employee";
+const MINIMUM_MONTHLY_WAGE = 24998;
 
 type CreateEmployeeInput = {
   first_name?: unknown;
@@ -48,7 +49,9 @@ export default {
     if (!firstName || !lastName) return fail("Enter the employee's full name.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Enter a valid work email.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) return fail("Enter a valid joining date.");
-    if (!Number.isFinite(wage) || wage < 0) return fail("Enter a valid monthly wage.");
+    if (!Number.isFinite(wage) || wage < MINIMUM_MONTHLY_WAGE) {
+      return fail(`Monthly wage must be at least ₹${MINIMUM_MONTHLY_WAGE}.`);
+    }
     if (!validRole(body.role)) return fail("Choose a valid access level.");
 
     const { data: authData, error: authError } = await ctx.supabase.auth.getUser();

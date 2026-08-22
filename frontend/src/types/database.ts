@@ -56,21 +56,18 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          login_prefix: string | null
           logo_url: string | null
           name: string
         }
         Insert: {
           created_at?: string
           id?: string
-          login_prefix?: string | null
           logo_url?: string | null
           name: string
         }
         Update: {
           created_at?: string
           id?: string
-          login_prefix?: string | null
           logo_url?: string | null
           name?: string
         }
@@ -94,7 +91,6 @@ export type Database = {
           job_position: string | null
           last_name: string
           location: string | null
-          login_id: string | null
           manager_id: string | null
           mobile: string | null
           monthly_wage: number | null
@@ -124,7 +120,6 @@ export type Database = {
           job_position?: string | null
           last_name: string
           location?: string | null
-          login_id?: string | null
           manager_id?: string | null
           mobile?: string | null
           monthly_wage?: number | null
@@ -154,7 +149,6 @@ export type Database = {
           job_position?: string | null
           last_name?: string
           location?: string | null
-          login_id?: string | null
           manager_id?: string | null
           mobile?: string | null
           monthly_wage?: number | null

@@ -187,3 +187,13 @@ export async function uploadAvatar(file: File): Promise<string> {
   if (error) throw new ServiceError('Could not upload that avatar.', error)
   return client.storage.from('avatars').getPublicUrl(path).data.publicUrl
 }
+
+export async function deleteAvatar(publicUrl: string): Promise<void> {
+  const marker = '/storage/v1/object/public/avatars/'
+  const pathname = new URL(publicUrl).pathname
+  const markerIndex = pathname.indexOf(marker)
+  if (markerIndex < 0) return
+  const path = decodeURIComponent(pathname.slice(markerIndex + marker.length))
+  const { error } = await supabaseClient().storage.from('avatars').remove([path])
+  if (error) throw new ServiceError('Could not remove the previous avatar.', error)
+}

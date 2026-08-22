@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Avatar,
@@ -31,8 +31,8 @@ export function Directory() {
   const q = useDebounced(search)
 
   const { status, data, error, reload } = useAsync(
-    () => listEmployees({ search: q, department: department || undefined }),
-    [q, department],
+    () => listEmployees(),
+    [],
   )
   const availableDepartments = [
     ...new Set(
@@ -41,6 +41,18 @@ export function Directory() {
         .filter((department): department is string => Boolean(department)),
     ),
   ]
+  const employees = useMemo(() => {
+    const normalized = q.trim().toLowerCase()
+    return (data ?? [])
+      .filter((employee) => !department || employee.department === department)
+      .filter((employee) =>
+        !normalized ||
+        `${employee.first_name} ${employee.last_name}`.toLowerCase().includes(normalized) ||
+        (employee.job_position ?? '').toLowerCase().includes(normalized) ||
+        (employee.department ?? '').toLowerCase().includes(normalized) ||
+        (employee.location ?? '').toLowerCase().includes(normalized),
+      )
+  }, [data, department, q])
 
   return (
     <>
@@ -61,7 +73,7 @@ export function Directory() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, role, team or location"
+          placeholder="Search by name, position, team or location"
           aria-label="Search employees"
           className="max-w-sm"
         />
@@ -84,7 +96,7 @@ export function Directory() {
       {status === 'error' && <ErrorState message={error} onRetry={reload} />}
 
       {status === 'ready' &&
-        (data.length === 0 ? (
+        (employees.length === 0 ? (
           <EmptyState
             title="Nobody matches that"
             body="Try a different name, team or location — or clear the filters to see everyone."
@@ -103,12 +115,12 @@ export function Directory() {
         ) : (
           <>
             <p className="t-caption mb-4 text-text-muted">
-              {data.length} {data.length === 1 ? 'person' : 'people'}
+              {employees.length} {employees.length === 1 ? 'person' : 'people'}
               {' · '}
-              {data.filter((e) => e.presence === 'present').length} in the office today
+              {employees.filter((e) => e.presence === 'present').length} in the office today
             </p>
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {data.map((e) => (
+              {employees.map((e) => (
                 <Card as="li" key={e.id} className="transition-colors hover:bg-neutral-fill">
                   <Link
                     to={`/employees/${e.id}`}

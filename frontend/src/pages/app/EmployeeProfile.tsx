@@ -17,7 +17,13 @@ import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
-import { deactivateEmployee, getEmployee, updateEmployee, uploadAvatar } from '@/services/employees'
+import {
+  deactivateEmployee,
+  deleteAvatar,
+  getEmployee,
+  updateEmployee,
+  uploadAvatar,
+} from '@/services/employees'
 import { fullName, isFullEmployee } from '@/types/models'
 import type { DirectoryEmployee, Employee } from '@/types/models'
 
@@ -148,9 +154,6 @@ function ProfileBody({
             <p className="t-caption mt-1 text-text-muted">
               {employee.job_position} · {employee.location}
             </p>
-            {isFullEmployee(employee) && employee.login_id && (
-              <p className="t-data mt-2 text-text-muted">{employee.login_id}</p>
-            )}
           </div>
           <div className="ml-auto flex flex-col items-end gap-2">
             <span className="t-label text-text-muted">{presence === 'present' ? 'In today' : presence === 'leave' ? 'On leave' : 'Not in today'}</span>
@@ -189,11 +192,14 @@ function AvatarUpload({ employee, onSaved }: { employee: Employee; onSaved: () =
     if (!file) return
     setBusy(true)
     setError(null)
+    let avatarUrl: string | null = null
     try {
-      const avatarUrl = await uploadAvatar(file)
+      avatarUrl = await uploadAvatar(file)
       await updateEmployee(employee.id, { avatar_url: avatarUrl })
+      if (employee.avatar_url) void deleteAvatar(employee.avatar_url).catch(() => undefined)
       onSaved()
     } catch (cause) {
+      if (avatarUrl) void deleteAvatar(avatarUrl).catch(() => undefined)
       setError(cause instanceof Error ? cause.message : 'Could not update your avatar.')
     } finally {
       setBusy(false)
@@ -256,10 +262,12 @@ function Resume({
   const [skills, setSkills] = useState((employee.skills ?? []).join(', '))
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true)
     setSaved(false)
+    setError(null)
     try {
       await updateEmployee(employee.id, {
         about,
@@ -267,6 +275,8 @@ function Resume({
       })
       setSaved(true)
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your resume.')
     } finally {
       setBusy(false)
     }
@@ -308,6 +318,7 @@ function Resume({
           </Button>
           {saved && <span className="t-caption text-text-muted">Saved.</span>}
         </div>
+        {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
       </Card>
       <Card>
         <h2 className="t-h3 mb-4">Preview</h2>
@@ -348,12 +359,16 @@ function PrivateInfo({
   const [address, setAddress] = useState(employee.address ?? '')
   const [mobile, setMobile] = useState(employee.mobile ?? '')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true)
+    setError(null)
     try {
       await updateEmployee(employee.id, { address, mobile })
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save private information.')
     } finally {
       setBusy(false)
     }
@@ -384,6 +399,7 @@ function PrivateInfo({
             <Button variant="strong" className="mt-4" onClick={save} disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </Button>
+            {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
           </>
         ) : (
           <>
@@ -427,15 +443,19 @@ function SalaryInfo({
   const [wage, setWage] = useState(employee.monthly_wage ?? 0)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const breakdown = useMemo(() => computeSalary(wage), [wage])
 
   async function save() {
     setBusy(true)
     setSaved(false)
+    setError(null)
     try {
       await updateEmployee(employee.id, { monthly_wage: wage })
       setSaved(true)
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save the wage.')
     } finally {
       setBusy(false)
     }
@@ -479,6 +499,7 @@ function SalaryInfo({
                 </Button>
                 {saved && <span className="t-caption text-text-muted">Saved.</span>}
               </div>
+              {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
             </>
           ) : (
             <>

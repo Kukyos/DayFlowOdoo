@@ -119,7 +119,7 @@ export function computeSalary(monthlyWage: number): SalaryBreakdown {
     totalDeductions,
     employerCost,
     net: round2(gross - totalDeductions),
-    isValid: wage === 0 || fixed >= 0,
+    isValid: wage >= MINIMUM_WAGE && fixed >= 0,
     minimumWage: MINIMUM_WAGE,
   }
 }

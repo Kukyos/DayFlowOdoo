@@ -83,7 +83,7 @@ export function Dashboard() {
           <Card>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="t-h3">Waiting on you</h2>
-              <Link to="/time-off">
+              <Link to="/time-off/approvals">
                 <Button size="sm">Review all</Button>
               </Link>
             </div>
