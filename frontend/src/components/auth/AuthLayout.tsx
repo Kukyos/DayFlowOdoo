@@ -68,16 +68,15 @@ export function AuthLayout({
           <div className="w-full max-w-[440px]">{children}</div>
         </div>
 
-        {/* Bottom furniture, matching the reference: brand mark left, terms right.
-            Hidden below lg so it never overlaps the form on a phone. */}
-        <div className="pointer-events-none hidden items-end justify-between px-12 pb-8 lg:flex">
+        {/* Bottom furniture stays compact on phones and expands with the layout. */}
+        <div className="pointer-events-none flex items-end justify-between gap-4 px-4 pb-6 sm:px-8 lg:px-12 lg:pb-8">
           <img
             src={dayflowLogo}
             alt=""
-            className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
+            className="auth-brand-logo h-11 w-auto shrink-0 select-none opacity-90 sm:h-14 lg:h-[72px]"
             aria-hidden="true"
           />
-          <span className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption">
+          <span className="pointer-events-auto rounded-full border border-current px-3 py-2 text-center t-caption sm:px-4">
             Terms &amp; Conditions
           </span>
         </div>
