@@ -15,6 +15,7 @@ import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
  */
 export function SignUp() {
   const navigate = useNavigate()
+  const [sentTo, setSentTo] = useState<string | null>(null)
   const [form, setForm] = useState({
     companyName: '',
     firstName: '',
@@ -26,6 +27,7 @@ export function SignUp() {
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmationRequired, setConfirmationRequired] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -59,19 +61,59 @@ export function SignUp() {
 
     setBusy(true)
     try {
-      await signUpCompany({
+      const result = await signUpCompany({
         companyName: form.companyName,
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
         password: form.password,
       })
-      navigate('/dashboard', { replace: true })
+      if (result.confirmationRequired) {
+        setConfirmationRequired(true)
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the account.')
     } finally {
       setBusy(false)
     }
+  }
+
+  if (sentTo) {
+    return (
+      <AuthLayout otherAction="signin">
+        <AuthCard
+          title="Confirm your email"
+          footer={
+            <p className="t-caption text-auth-panel-ink">
+              Wrong address?{' '}
+              <button
+                type="button"
+                onClick={() => setSentTo(null)}
+                className="font-bold underline underline-offset-4"
+              >
+                Go back and change it
+              </button>
+            </p>
+          }
+        >
+          <p className="t-body">
+            We sent a confirmation link to <strong>{sentTo}</strong>. Follow it,
+            then sign in — your company and admin account are already created.
+          </p>
+          <p className="t-caption mt-4 text-text-muted">
+            Nothing arrived? Check the spam folder. The link returns you to the
+            sign-in page.
+          </p>
+          <Link to="/signin">
+            <Button variant="strong" className="mt-6 w-full">
+              Go to sign in
+            </Button>
+          </Link>
+        </AuthCard>
+      </AuthLayout>
+    )
   }
 
   return (
@@ -87,7 +129,18 @@ export function SignUp() {
           </p>
         }
       >
-        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+        {confirmationRequired ? (
+          <div className="flex flex-col gap-4">
+            <p className="t-body text-text-muted">
+              Check your inbox to confirm your email address. Once confirmed,
+              return here and log in to continue.
+            </p>
+            <Button type="button" variant="strong" className="w-full" onClick={() => navigate('/signin')}>
+              Go to log in
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           {error && (
             <p
               role="alert"
@@ -176,7 +229,8 @@ export function SignUp() {
           <Button type="submit" variant="strong" disabled={busy} className="mt-2 w-full">
             {busy ? 'Creating your company…' : 'Create company account'}
           </Button>
-        </form>
+          </form>
+        )}
 
         <p className="t-caption mt-5 border-t border-border-soft pt-4 text-text-muted">
           This creates the company and makes you its first admin. You add your

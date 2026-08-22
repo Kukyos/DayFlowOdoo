@@ -18,6 +18,9 @@ Supabase. If a function is not listed here, it does not exist yet.
 
 ## `auth.ts`
 
+`getSession()` is asynchronous in the Supabase implementation because the
+browser client restores its persisted session through `supabase.auth.getSession()`.
+
 ```ts
 type SignUpCompanyInput = {
   companyName: string
@@ -30,7 +33,7 @@ type SignUpCompanyInput = {
 
 type SignUpCompanyResult = {
   userId: string
-  confirmationRequired: true
+  confirmationRequired: boolean
 }
 ```
 
