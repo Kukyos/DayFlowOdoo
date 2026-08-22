@@ -84,6 +84,18 @@ cp .env.example .env.local   # fill in the Supabase keys
 npm run dev
 ```
 
+For a repeatable local demo database, run `supabase db reset --local` from
+`backend/` after reviewing `backend/supabase/seed.sql`. This replaces local data
+and creates these local-only accounts:
+
+| role | email | password |
+|---|---|---|
+| Admin | `admin@dayflow.local` | `DayflowDemo7!` |
+| Employee | `employee@dayflow.local` | `DayflowDemo7!` |
+
+Never reuse these credentials or include the local seed in a linked database
+push.
+
 **Environment**
 
 | var | what |

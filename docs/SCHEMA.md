@@ -14,8 +14,9 @@ companies → employees
 the auth/company foundation, forced-password-change guard, company-scoped safe
 directory RPC, controlled employee updates, live attendance actions/history,
 the employee/admin leave workflow through atomic review, privileged employee
-creation/deactivation, and company-scoped Storage. Seed data and later-tier
-tables remain future milestones.
+creation/deactivation, company-scoped Storage, and a guarded dashboard summary.
+A repeatable local-only demo seed covers the four-table MVP. Later-tier tables
+remain future milestones.
 
 ## `companies`
 
@@ -194,10 +195,11 @@ authorization-checked, short-lived signed URLs.
 
 ## Seed data
 
-Create one company, 10–12 employees (one admin, one HR, and 8–10 employees),
-realistic profiles and salary values, attendance for the current week/month,
-all three presence states today, and three pending leave requests. Use department
-strings such as Engineering, Design, HR, Sales, and Support.
+`backend/supabase/seed.sql` creates one company, 12 employees (one admin, one HR,
+and ten employees), realistic profiles and salary values, current-month
+attendance, all three presence states today, and mixed leave decisions. It runs
+only during local reset by default; normal linked migration pushes do not apply
+it.
 
 ## Deliberately out of scope
 

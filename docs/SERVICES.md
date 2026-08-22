@@ -13,13 +13,19 @@ Supabase. If a function is not listed here, it does not exist yet.
 - Types come from generated `frontend/src/types/database.ts`, never hand-edited.
 - Dates cross the boundary as `YYYY-MM-DD`; money is a number of rupees rounded
   to two decimals.
-- During page work, service stubs use `frontend/src/fixtures/` but retain these
-  exact return shapes. Fixtures are removed once the real service is wired.
+- Demo data comes from `backend/supabase/seed.sql`; production services never
+  import local fixtures.
 
 **Live through Milestone 9:** company reads/updates, directory/profile,
 employee creation/deactivation, attendance, time off, avatars, company logos,
-and private leave attachments now call Supabase. Dashboard-only fixture data
-and seed data remain for later milestones.
+private leave attachments, and the guarded dashboard summary now call Supabase.
+The unused frontend fixture layer has been removed.
+
+## `dashboard.ts`
+
+| function | returns | notes |
+|---|---|---|
+| `getDashboardSummary()` | `DashboardSummary` | One authenticated RPC; own attendance/balances/recent requests for everyone, company aggregates and pending requests only for Admin/HR |
 
 ## `auth.ts`
 

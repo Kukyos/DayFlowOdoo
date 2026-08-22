@@ -473,7 +473,7 @@ Still open, and each one blocks something:
   Blocks preview-URL verification, which is how §10 gets checked.
 - ⬜ **Design tokens extracted from the reference and filled into `docs/DESIGN.md`**
   (Armaan, Stage 2). §8 forbids an AI session inventing the palette. Blocks Stage 3.
-- ⬜ **Employee creation flow deployed and tested.** It creates the Auth user
+- ✅ **Employee creation flow deployed and API-tested.** It creates the Auth user
   and linked employee record, returns a temporary password once, forces its
   replacement, and never exposes a service-role key. Blocks the
   "HR creates an employee" Tier 1 flow.

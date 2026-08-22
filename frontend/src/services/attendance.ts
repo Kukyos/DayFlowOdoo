@@ -1,6 +1,6 @@
 import { daysInMonth, isWeekend, today, workHours } from '@/lib/dates'
 import type { AttendanceDay, AttendanceRow, AttendanceStatus } from '@/types/models'
-import { ServiceError, clone, supabaseClient, unwrap } from './client'
+import { ServiceError, supabaseClient, unwrap } from './client'
 
 const isAttendanceStatus = (value: string): value is AttendanceStatus =>
   value === 'present' || value === 'half_day' || value === 'absent' || value === 'leave'
@@ -24,7 +24,7 @@ export async function todayStatus() {
     : null
   return {
     checkedIn: Boolean(row?.check_in && !row.check_out),
-    row: row ? clone(row) : null,
+    row: row ? { ...row } : null,
   }
 }
 

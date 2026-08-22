@@ -46,7 +46,7 @@ export function Directory() {
     <>
       <PageHeader
         title="Employees"
-        subtitle="Everyone at Odoo India, and whether they are in today."
+        subtitle="Everyone in your company, and whether they are in today."
         actions={
           isPrivileged && (
             <Link to="/employees/new">

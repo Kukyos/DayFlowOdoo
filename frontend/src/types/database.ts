@@ -318,6 +318,7 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: undefined
       }
+      get_dashboard_summary: { Args: never; Returns: Json }
       list_company_attendance: {
         Args: { p_search?: string; p_work_date?: string }
         Returns: {
