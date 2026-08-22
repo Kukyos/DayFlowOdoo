@@ -422,3 +422,9 @@ entrypoint = "./functions/create-employee/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/create-employee/*.html" ]
+
+[functions.sign-in-with-login-id]
+enabled = true
+verify_jwt = false
+import_map = "./functions/sign-in-with-login-id/deno.json"
+entrypoint = "./functions/sign-in-with-login-id/index.ts"

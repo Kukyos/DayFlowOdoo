@@ -128,6 +128,7 @@ export type CreateEmployeeInput = {
 
 type CreateEmployeeResult = {
   employee: Omit<Employee, 'role'> & { role: string }
+  loginId: string
   temporaryPassword: string
 }
 
@@ -144,11 +145,12 @@ export async function createEmployee(input: CreateEmployeeInput) {
     }
     throw new ServiceError(message, error)
   }
-  if (!data?.employee || !data.temporaryPassword) {
+  if (!data?.employee || !data.loginId || !data.temporaryPassword) {
     throw new ServiceError('The employee-creation service returned an incomplete result.')
   }
   return {
     employee: toEmployee(data.employee),
+    loginId: data.loginId,
     temporaryPassword: data.temporaryPassword,
   }
 }
