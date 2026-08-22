@@ -29,6 +29,22 @@ Exposed as the `employee_presence` view. **Do not add a `status` column to
 `employees`.** A stored status goes stale the moment someone checks in, and with
 four sessions in one repo it will be added four times.
 
+> **This view must be `security_invoker = false`, and that is not an
+> optimisation — it is the only way the directory works.** The `attendance`
+> policy lets an employee select their *own* rows. A view running as the invoker
+> would therefore show every colleague as yellow, which looks like working code
+> and is wrong. Running as owner bypasses that policy, so the view body carries
+> its own scoping and its own narrowness:
+>
+> - it filters `company_id = current_company_id()`, so it cannot cross companies;
+> - it selects **`employee_id` and the presence enum only** — never `check_in`,
+>   `check_out`, or which leave type someone is on. A colleague may see that
+>   Priya is out; they may not see that she left at 14:20 or that it was sick
+>   leave.
+>
+> Same rule anywhere else a derived view crosses an RLS boundary: owner rights
+> mean the view is the policy, so it has to be written like one.
+
 **2. Salary component amounts are not stored on the employee.** `salary_components`
 stores the *rules* (type + value); the amounts are computed by
 `frontend/src/lib/salary.ts` at render time. Amounts are only ever persisted as
@@ -329,10 +345,25 @@ not change when someone later edits the salary structure.
 
 **Every table has RLS enabled. No exceptions, no "we will add it later".**
 
-Two helper functions, both `security definer`, used by every policy below:
+Three `security definer` functions, used by the policies below:
 
 - `current_company_id()` → the caller's `employees.company_id`
 - `is_privileged()` → true when the caller's `role` is `admin` or `hr`
+- `email_for_login_id(p_login_id text)` → `text`
+
+The third is the **one function that runs unauthenticated**, and it exists
+because sign-in accepts a login ID. Resolving `OIJODO20220001` to an email
+happens before authentication, so `auth.uid()` is null, `current_company_id()` is
+null, and the `employees` select policy matches nothing — a plain query returns
+zero rows and login-by-ID fails every time, looking exactly like a wrong-password
+bug. Constraints, because an unauthenticated lookup is an enumeration surface:
+
+- exact match on `login_id` only — no prefix, no `ilike`, no partial;
+- returns `work_email` and nothing else, never a row, never a name;
+- returns null for an unknown or inactive ID, and the sign-in page shows the same
+  "invalid credentials" message either way. A distinguishable error turns this
+  into a valid-employee-ID oracle;
+- rate-limited or, at minimum, given the same failure delay as a bad password.
 
 | table | employee | admin / HR |
 |---|---|---|
@@ -357,6 +388,39 @@ Three specifics that are easy to get wrong and are the entire point of the table
   `status` out of the employee-facing service.
 - **An employee must not change their own `role`.** A permissive update policy on
   `employees` is a privilege-escalation path straight to the salary table.
+
+### "Own row, limited columns" — how, exactly
+
+**RLS has no column dimension.** An `update` policy is all-or-nothing on the row,
+so "employees may edit five of their own fields" cannot be expressed as a policy.
+Written as a bare policy it grants a self-service `role = 'admin'` and the whole
+salary table with it. Use a `before update` trigger, which is the one mechanism
+here with access to `OLD`:
+
+```sql
+create function guard_employee_update() returns trigger as $$
+begin
+  if not is_privileged() then
+    new.role            := old.role;
+    new.company_id      := old.company_id;
+    new.login_id        := old.login_id;
+    new.work_email      := old.work_email;
+    new.date_of_joining := old.date_of_joining;
+    new.is_active       := old.is_active;
+    new.manager_id      := old.manager_id;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$ language plpgsql security definer;
+```
+
+Silently restoring beats raising: the self-edit form sends the whole row, so
+rejecting any untouched protected field would fail every legitimate save. What
+lands is the intersection of what was sent and what the caller may change.
+
+The list above is a **denylist of protected columns**, so a new sensitive column
+is unprotected until someone adds it here. Whoever adds a column to `employees`
+decides, in the same commit, whether it belongs in this trigger.
 
 > RLS is the one place AI output looks correct and silently is not. Policies come
 > out either too permissive or locking you out. **Test each one manually against

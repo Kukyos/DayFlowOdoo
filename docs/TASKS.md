@@ -32,10 +32,10 @@ is the sign-up → landing path working end to end.
 
 | # | Task | Owner | Done |
 |---|---|---|---|
-| 2.1 | Fill `DESIGN.md` §2 with real values extracted from the reference | Armaan | ☐ |
+| 2.1 | `DESIGN.md` tokens — filled from the switch-lit reference | Armaan | ☑ |
 | 2.2 | Tokens live in `styles.css`; light **and** dark defined for every one | Armaan | ☐ |
 | 2.3 | Theme toggle in the header; persists; defaults to system preference | Armaan | ☐ |
-| 2.4 | Fonts loading, **verified in devtools** — not just written in the doc | Armaan | ☐ |
+| 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☐ |
 | 2.5 | UI primitives: Button, Input, Select, Card, Badge, Avatar, Table, Modal, Tabs, Toast, EmptyState, Spinner | Armaan | ☐ |
 | 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
 | 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
@@ -44,7 +44,10 @@ is the sign-up → landing path working end to end.
 | 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☐ |
 | 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ☐ |
 | 2.12 | `generate_login_id()` + `login_id_counters`, with the atomic serial | Praneet | ☐ |
-| 2.13 | `employee_presence` and `time_off_balances` views | Praneet | ☐ |
+| 2.12a | `email_for_login_id()` — the one unauthenticated lookup, exact-match, email only. **Sign-in by login ID fails 100% without it** | Praneet | ☐ |
+| 2.12b | `guard_employee_update()` trigger — RLS has no column dimension, so this is what makes self-edit "limited columns" true | Praneet | ☐ |
+| 2.12c | `lib/workdays.ts`, with its unit test. Three callers, one implementation | Praneet | ☐ |
+| 2.13 | `employee_presence` (**`security_invoker = false`**, own scoping, presence enum only) and `time_off_balances` views | Praneet | ☐ |
 | 2.14 | Seed data per `SCHEMA.md` — 12–15 employees, a month of attendance, allocations, pending requests | Praneet | ☐ |
 | 2.15 | **Two seeded dev accounts, admin and employee, logged into from a real browser** | Praneet | ☐ |
 | 2.16 | `AuthProvider` + `ProtectedRoute` + `AdminRoute` + forced password change | Praneet | ☐ |
@@ -130,6 +133,7 @@ honest multi-author history comes from.
 | 5.2 | Responsive pass at 375px | all | ☐ |
 | 5.3 | Design consistency sweep across all pages | Armaan | ☐ |
 | 5.4 | **Both themes checked on every screen** | Armaan | ☐ |
+| 5.4a | Status chips legible in grayscale and with colour-vision deficiency simulated — spring green vs highlighter lime is the pair that fails | Armaan | ☐ |
 | 5.5 | Keyboard reachability and focus rings | all | ☐ |
 | 5.6 | Zero console errors, fresh browser, production link | all | ☐ |
 | 5.7 | RLS re-verified: log in as an employee, confirm the salary tab is genuinely denied and not merely hidden | Praneet | ☐ |

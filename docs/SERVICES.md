@@ -116,6 +116,27 @@ The Salary Info tab calls it on every keystroke in the wage field — no round-t
 no loading state, the whole table just moves. Payroll calls the same function.
 Rules and worked example are in `SCHEMA.md`.
 
+## `lib/workdays.ts` — shared, and it must not be written twice
+
+`frontend/src/lib/workdays.ts` — a pure function, no Supabase import, owned by
+Praneet alongside `salary.ts`:
+
+```ts
+workingDaysBetween(start: string, end: string, daysPerWeek: number): number
+workingDaysInMonth(month: string, daysPerWeek: number): number
+```
+
+**Three callers need this and they must all agree:** `timeOff.createRequest`
+computes a request's `days`, `payroll.payableDays` computes
+`total_working_days`, and `attendance.attendanceSummary` computes the denominator
+of its counts. Three private copies is the realistic default, and then a leave
+request says 3 days while the payslip deducts 2 — a discrepancy that shows up
+directly on the salary slip, which is the first number a judge will check.
+
+One file, three callers, no drift. Same rule as `salary.ts`, and it earns the
+same unit test: month boundaries, a range that starts on a weekend, a single-day
+request, and a `daysPerWeek` other than 5.
+
 ## `payroll.ts` — Tier 2
 
 | function | returns | notes |

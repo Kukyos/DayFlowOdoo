@@ -396,6 +396,7 @@ nobody owned.
 | `docs/SCHEMA.md` · `docs/SERVICES.md` | the data contract everyone reads | **Praneet** — others open an issue, don't edit |
 | `docs/DESIGN.md` | tokens everyone consumes | **Armaan** |
 | `frontend/src/lib/salary.ts` | shared by the Salary tab and payslips | **Praneet** — pure function, no Supabase |
+| `frontend/src/lib/workdays.ts` | three callers compute working days | **Praneet** — pure function; three private copies is how leave days and payslip days stop agreeing |
 
 Other standing risks:
 
