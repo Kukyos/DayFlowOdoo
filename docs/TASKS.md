@@ -53,8 +53,8 @@ is the sign-up → landing path working end to end.
 | 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
 | 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
 | 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
-| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☐ |
-| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ☐ |
+| 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ◐ `companies` and `employees` auth foundation added; attendance and leave remain |
+| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ own-employee and own-company reads added; remaining tables and linked two-user verification remain |
 | 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
 | 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☐ |
 | 2.12b | `employee_directory` view with company scoping and only its documented safe columns | Praneet | ☐ |

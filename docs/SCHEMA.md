@@ -1,9 +1,5 @@
 # Dayflow MVP schema
 
-**Owner: Praneet.** This is the complete database contract for the 8-hour
-hackathon. It intentionally has four application tables and one safe directory
-view. If a feature needs another table, it is out of scope.
-
 Conventions: `snake_case`; UUID primary keys use `gen_random_uuid()`; all money
 is `numeric(12,2)`; calendar days are `date`; timestamps are `timestamptz`.
 Every application table has RLS enabled.

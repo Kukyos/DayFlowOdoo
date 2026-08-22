@@ -8,6 +8,12 @@ Public Sign Up is for a **new company only**. It creates one `companies` row and
 the first `employees` row with `role = 'admin'`. The database—not client-supplied
 metadata—sets that role.
 
+The sign-up request supplies `company_name`, `first_name`, `last_name`, and an
+optional `mobile` value as profile metadata. The auth service adds the internal
+`registration_type = 'company'` discriminator; callers never supply a role.
+Company-logo upload is deferred until the Storage policies are implemented, so
+`companies.logo_url` remains null during this milestone.
+
 Employees never self-register. An Admin or HR user creates an employee through a
 server-side Supabase invite operation, which creates `auth.users` and the linked
 `employees` row. The frontend never receives a service-role key.
@@ -26,6 +32,15 @@ components must not make their own role comparison.
 The required MVP path is **email + password**. `login_id` may be generated for
 HR display, but resolving it before authentication is out of scope. This avoids
 an unauthenticated employee-email lookup and keeps time on HR features.
+
+Email confirmation is required. Company sign-up creates the Auth user, company,
+and first admin atomically, but returns no session. The page shows a check-email
+state; after following the confirmation link, the user signs in normally and is
+redirected to `/dashboard`. Passwords must contain at least eight characters.
+
+For local development, confirmation links return to
+`http://localhost:5173/signin`. Hosted Vercel URLs must be added to the Supabase
+Auth redirect allow-list before testing a deployed preview.
 
 ## Session state
 
