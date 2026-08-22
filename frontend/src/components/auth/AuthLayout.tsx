@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Button } from '@/components/ui'
+import { Button, Modal } from '@/components/ui'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import dayflowLogo from '@/assets/dayflow-df-logo.png'
 import { WorkweekMark } from './WorkweekMark'
@@ -22,6 +22,7 @@ export function AuthLayout({
   otherAction: 'signin' | 'signup'
 }) {
   const [theme, setThemeState] = useState<Theme>(currentTheme)
+  const [termsOpen, setTermsOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
@@ -77,11 +78,75 @@ export function AuthLayout({
             className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
             aria-hidden="true"
           />
-          <span className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption">
+          <button
+            type="button"
+            onClick={() => setTermsOpen(true)}
+            className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption"
+          >
             Terms &amp; Conditions
-          </span>
+          </button>
         </div>
       </main>
+
+      <Modal open={termsOpen} onClose={() => setTermsOpen(false)} title="Terms and Conditions">
+        <TermsContent />
+      </Modal>
+    </div>
+  )
+}
+
+/** Plain-language MVP terms. Placeholder legal copy, not reviewed counsel. */
+function TermsContent() {
+  return (
+    <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1 t-body text-text-muted">
+      <p>
+        These terms govern your company's use of Dayflow. By creating a company
+        account or signing in, your admin agrees to them on behalf of your
+        organisation, and every invited employee agrees to them by signing in.
+      </p>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">1. What Dayflow is for</h3>
+        <p>
+          Dayflow is a workforce record system: employee profiles, attendance,
+          time off, and a per-employee salary breakdown, scoped to your
+          company. It is not a payroll processor and does not move money.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">2. Accounts</h3>
+        <p>
+          Only an admin or HR officer can create an employee account, through
+          an invite. Employees do not self-register. Each person is
+          responsible for keeping their own password confidential and for
+          activity under their account.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">3. Company data</h3>
+        <p>
+          Everything entered — profiles, attendance, leave requests, wage
+          figures — belongs to your company. Row-level security scopes every
+          query to your company alone; no other company's data is visible from
+          yours.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">4. Acceptable use</h3>
+        <p>
+          Use Dayflow only for legitimate workforce administration for your
+          own organisation. Do not attempt to access another company's
+          records, share login credentials, or use the service to store data
+          you are not authorised to hold.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">5. Changes</h3>
+        <p>
+          This is an early build and these terms may change as the product
+          does. Material changes will be reflected here before they take
+          effect.
+        </p>
+      </div>
     </div>
   )
 }
