@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Button } from '@/components/ui'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
+import dayflowLogo from '@/assets/dayflow-df-logo.png'
 import { WorkweekMark } from './WorkweekMark'
 
 /**
@@ -67,12 +68,15 @@ export function AuthLayout({
           <div className="w-full max-w-[440px]">{children}</div>
         </div>
 
-        {/* Bottom furniture, matching the reference: monogram left, terms right.
+        {/* Bottom furniture, matching the reference: brand mark left, terms right.
             Hidden below lg so it never overlaps the form on a phone. */}
         <div className="pointer-events-none hidden items-end justify-between px-12 pb-8 lg:flex">
-          <span className="t-display select-none text-[88px] leading-none opacity-90">
-            D—F
-          </span>
+          <img
+            src={dayflowLogo}
+            alt=""
+            className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
+            aria-hidden="true"
+          />
           <span className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption">
             Terms &amp; Conditions
           </span>
