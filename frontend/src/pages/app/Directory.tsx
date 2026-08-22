@@ -16,6 +16,8 @@ import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
+import directoryActionIllustration from '@/assets/employee-directory-action-illustration.png'
+import directoryIllustration from '@/assets/employee-directory-illustration.png'
 
 /**
  * The employee directory — the hero screen.
@@ -55,7 +57,27 @@ export function Directory() {
   }, [data, department, q])
 
   return (
-    <>
+    <div className="relative isolate">
+      {/*
+        Fixed to the viewport corner, not the page's own bottom — same fix as
+        the dashboard's support illustration. Anchoring to a `min-h` wrapper's
+        bottom left a gap whenever the directory's real content (few
+        employees, or a narrow filtered result) didn't reach that forced
+        height. X = `left-*`, Y = `bottom-*`.
+      */}
+      <img
+        src={directoryIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none fixed bottom-0 left-3 -z-10 w-[95vw] max-w-[960px] select-none sm:left-8"
+      />
+      <img
+        src={directoryActionIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute top-8 right-40 -z-10 hidden w-[200px] select-none lg:block"
+      />
+
       <PageHeader
         title="Employees"
         subtitle="Everyone in your company, and whether they are in today."
@@ -121,7 +143,11 @@ export function Directory() {
             </p>
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {employees.map((e) => (
-                <Card as="li" key={e.id} className="transition-colors hover:bg-neutral-fill">
+                <Card
+                  as="li"
+                  key={e.id}
+                  className="bg-surface/65 backdrop-blur-[0.5px] transition-colors hover:bg-neutral-fill"
+                >
                   <Link
                     to={`/employees/${e.id}`}
                     className="flex h-full flex-col gap-4 rounded-card"
@@ -147,6 +173,6 @@ export function Directory() {
             </ul>
           </>
         ))}
-    </>
+    </div>
   )
 }
