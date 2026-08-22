@@ -31,20 +31,16 @@ who works here, who showed up today, who is on leave, and what each person is
 owed at the end of the month. Today those live in four places that disagree with
 each other.
 
-Dayflow puts them in one place and makes them agree. An HR officer creates an
-employee, and the system issues their login ID and a first-time password. That
-employee checks in and out each day; those check-ins are the attendance record.
-When they need time off they request it against an allocation they can see the
-balance of, and HR approves or rejects it. Their salary structure is derived
-from a single wage figure rather than typed in component by component. At the
-end of the month, attendance and approved leave decide how many days are
-payable, and the payslip falls out of the salary structure.
+Dayflow puts them in one place. An HR officer creates an employee through an
+invite; that employee signs in with email and password, then checks in and out
+each day. When they need time off, they request paid, sick, or unpaid leave.
+HR approves or rejects it, and approval updates the matching leave balance. The
+Salary Info screen derives a fixed breakdown from one monthly wage.
 
-**The thing that makes it a product rather than four CRUD screens is that these
-feed each other.** Attendance is not a log you read; it is the input to payroll.
-Leave is not a form; it changes both the presence indicator on the directory and
-the payable-day count. Salary is not a table of numbers; it is one wage figure
-and a set of rules that recompute live.
+**The MVP is five working flows, not four CRUD screens:** employee directory,
+profiles, attendance, time off, and salary view. Attendance and approved leave
+drive the directory presence indicator; salary is a single wage with a local,
+fixed calculation rather than a payroll system.
 
 Two kinds of user. An **Employee** sees their own profile, their own attendance,
 their own time off, and a read-only view of their salary. An **Admin / HR
@@ -403,8 +399,7 @@ nobody owned.
 | `docs/TASKS.md` | everyone, every commit — append-only per-lane sections | everyone; **tick only your own rows** |
 | `docs/SCHEMA.md` · `docs/SERVICES.md` | the data contract everyone reads | **Praneet** — others open an issue, don't edit |
 | `docs/DESIGN.md` | tokens everyone consumes | **Armaan** |
-| `frontend/src/lib/salary.ts` | shared by the Salary tab and payslips | **Praneet** — pure function, no Supabase |
-| `frontend/src/lib/workdays.ts` | three callers compute working days | **Praneet** — pure function; three private copies is how leave days and payslip days stop agreeing |
+| `frontend/src/lib/salary.ts` | fixed Salary Info calculation | **Praneet** — pure function, no Supabase |
 
 Other standing risks:
 
@@ -477,24 +472,16 @@ Still open, and each one blocks something:
   Blocks preview-URL verification, which is how §10 gets checked.
 - ⬜ **Design tokens extracted from the reference and filled into `docs/DESIGN.md`**
   (Armaan, Stage 2). §8 forbids an AI session inventing the palette. Blocks Stage 3.
-- ⬜ **Employee-creation mechanism decided** — Edge Function vs pending-row claim.
-  See `docs/AUTH.md` §5. Deferred to Stage 2 by team decision. Blocks the
-  "HR creates an employee" flow, which is Tier 1.
+- ⬜ **Employee invite flow deployed and tested.** It creates the Auth user and
+  linked employee record without exposing a service-role key. Blocks the
+  "HR creates an employee" Tier 1 flow.
 - ⬜ **Concurrent AI account usage tested.** Test before the event, not at hour four.
 - ⬜ **Does this run keep a clock?** The one number worth measuring is how long
   Stages 1–2 take, because nothing else can start until they are done.
 
-### The two contradictions in the source material
+### Source-material decision
 
-Both are resolved in `docs/SCHEMA.md`; recorded here so nobody re-derives them.
-
-1. **Fixed Allowance.** The wireframe's note says Fixed Allowance = wage − total
-   of all other components. Its rendered numbers say 11.67% of Basic (₹2,918),
-   which leaves the components summing to ₹48,750 against a ₹50,000 wage. **The
-   written rule wins**: Fixed Allowance is the residual, ₹4,168 on a ₹50,000
-   wage. It also satisfies the wireframe's own constraint that components must
-   not exceed the wage.
-2. **Sign Up.** The PDF says users register with Employee ID / Email / Password /
-   Role. The wireframe says a normal user *cannot* register — HR creates them and
-   the system generates their ID and first password. **The wireframe wins**:
-   public Sign Up registers a *company and its first admin* only.
+The PDF describes open employee registration. The MVP does not: public Sign Up
+registers a company and its first admin only; normal employees are invited by
+Admin/HR and sign in with email and password. An optional generated login ID is
+display data, not an authentication path.

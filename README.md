@@ -18,21 +18,19 @@ month.
 - **Employee directory** — a card grid with live presence: 🟢 in the office,
   ✈️ on leave, 🟡 absent. Derived from attendance and approved leave, never a
   stale status column.
-- **Profiles** — Resume, Private Info, Salary Info and Settings tabs, with the
-  salary tab visible to admins and HR only.
+- **Profiles** — Work, Resume, Private Info and Salary Info live on the same
+  employee record. RLS keeps private and salary data to the employee and
+  Admin/HR.
 - **Attendance** — check in and check out from the header; day-wise records with
-  work hours and extra hours; admins see the whole company for any given day.
-- **Time off** — allocations and balances, requests with attachments for sick
-  leave, and an approval queue for HR.
+  derived work hours; Admin/HR see the whole company for any given day.
+- **Time off** — paid, sick, and unpaid requests; the paid/sick balances live on
+  the employee record and HR approvals update them.
 - **Salary structure** — one wage figure in, six components out, recomputed live.
   Basic, HRA, standard allowance, performance bonus, LTA, and a fixed allowance
   that absorbs the remainder so the components always total the wage exactly.
-- **Payslips** — attendance and approved leave decide the payable days; the
-  salary structure decides the money.
-
-Employees are created by HR, not by self-registration. The system issues a login
-ID in the form `OIJODO20220001` — company prefix, initials, joining year, and a
-serial for that year — along with a first password the employee must change.
+Employees are created by HR, not by self-registration. The required sign-in path
+is email and password. A generated login ID such as `OIJODO20220001` is optional
+HR-facing display data, not a custom authentication system.
 
 ## Stack
 
@@ -63,10 +61,8 @@ docs/
 Security lives in row-level policies, not in route guards — a guard hides a
 screen, it does not stop a request.
 
-The salary engine is a pure function over `(wage, components, taxes)`. The admin
-salary tab calls it on every keystroke, so the table recomputes with no
-round-trip; payroll calls the same function when generating a payslip. One
-implementation, two callers, no drift.
+The salary engine is a pure function over a monthly wage. The Salary Info screen
+recomputes the fixed MVP breakdown locally, with no additional salary tables.
 
 ## Team
 

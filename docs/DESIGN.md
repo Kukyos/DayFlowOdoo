@@ -25,7 +25,7 @@ black text, never a page background and never coloured text. In this app those
 fills are load-bearing: they are the presence indicators (§2.4).
 
 This suits Dayflow better than a conventional SaaS look. An HR tool is a
-document people read every day — a directory, a register, a payslip. An inked
+document people read every day — a directory, a register, an employee record. An inked
 editorial grid is what a well-set register looks like.
 
 ---

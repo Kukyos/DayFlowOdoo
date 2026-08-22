@@ -1,152 +1,81 @@
 # Services
 
-**Owner: Praneet.** The contract between the frontend and Supabase. Every
-function the frontend may call is listed here; nothing else exists.
-
-**Pages never import `supabase`.** Pages call `frontend/src/services/`; services
-call Supabase. If the function you need is not in this file, ask — do not reach
-around the layer, and do not invent a signature.
+**Owner: Praneet.** This is the frontend contract for the four-table MVP.
+Pages never import `supabase`; they call `frontend/src/services/`, which calls
+Supabase. If a function is not listed here, it does not exist yet.
 
 ## Rules
 
-- One file per domain: `auth.ts`, `employees.ts`, `attendance.ts`, `timeOff.ts`,
-  `salary.ts`, `payroll.ts`, `company.ts`.
-- Every function returns the data or **throws**. No `{ data, error }` tuples
-  leaking into pages — one `unwrap()` helper in `services/client.ts` turns a
-  Supabase error into a thrown `Error`, and pages use their normal error state.
-- Types come from `frontend/src/types/database.ts`, which is generated. Run
-  `npx supabase gen types typescript` after every migration and commit it. Never
-  hand-edit it, and never write a second definition of a row type.
-- Dates cross the boundary as `YYYY-MM-DD` strings, not `Date` objects.
-- Money crosses as `number` in rupees, already rounded to 2 decimals.
-
-## Stubbing, during Stage 3
-
-A service that does not exist yet is **stubbed at its real signature**, returning
-data from `frontend/src/fixtures/`. The page is never blocked, and the contract
-is proven before it is implemented. `fixtures/` lives outside `services/` because
-`services/` is one owner's lane; fixture shapes must match `SCHEMA.md` columns
-exactly, so Stage 4 is a one-line import swap per page.
-
----
+- One file per domain: `auth.ts`, `company.ts`, `employees.ts`,
+  `attendance.ts`, `timeOff.ts`, and `salary.ts`.
+- Every function returns data or throws. `services/client.ts` owns the one
+  `unwrap()` helper.
+- Types come from generated `frontend/src/types/database.ts`, never hand-edited.
+- Dates cross the boundary as `YYYY-MM-DD`; money is a number of rupees rounded
+  to two decimals.
+- During page work, service stubs use `frontend/src/fixtures/` but retain these
+  exact return shapes. Fixtures are removed once the real service is wired.
 
 ## `auth.ts`
 
 | function | returns | notes |
 |---|---|---|
-| `signUpCompany({ companyName, logoFile, adminName, email, password })` | `Session` | Public Sign Up. Creates the company **and** its first admin. The only public registration path |
-| `signIn(loginIdOrEmail, password)` | `Session` | Accepts either the login ID or the work email. A login ID is resolved to its email first |
+| `signUpCompany(input)` | `Session` | Public company registration. Creates the first admin, company, and employee record |
+| `signIn(email, password)` | `Session` | Email and password only for the MVP |
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |
-| `onAuthChange(cb)` | unsubscribe fn | Wraps `onAuthStateChange` for `AuthProvider` |
-| `changePassword(newPassword)` | `void` | Also clears `must_change_password` |
-| `currentEmployee()` | `Employee` | The caller's own row, with `role`. What `AuthProvider` puts in context |
+| `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
+| `changePassword(newPassword)` | `void` | |
+| `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
 
 ## `company.ts`
 
 | function | returns | notes |
 |---|---|---|
-| `getCompany()` | `Company` | The caller's company. Header logo and name |
+| `getCompany()` | `Company` | Header logo and name |
 | `updateCompany(patch)` | `Company` | Admin only |
+| `uploadCompanyLogo(file)` | `string` | `company-logos` bucket |
 
 ## `employees.ts`
 
 | function | returns | notes |
 |---|---|---|
-| `listEmployees({ search?, department? })` | `EmployeeCard[]` | The directory grid. Reads `employee_presence`, so each card carries `presence: 'present' \| 'leave' \| 'absent'` |
-| `getEmployee(id)` | `EmployeeProfile` | Profile in view mode. Includes `private` and `resume` when the caller may see them, null when not |
-| `createEmployee(input)` | `{ employee, loginId, tempPassword }` | **Admin/HR only.** Generates the login ID and a first password, seeds the six default salary components and the standard time-off allocations. See `AUTH.md` §5 — mechanism decided in Stage 2 |
-| `updateEmployee(id, patch)` | `Employee` | RLS decides which fields land. Self-edit is limited to `mobile`, `avatar_url`, `about`, `job_love`, `interests` |
-| `updatePrivateInfo(id, patch)` | `EmployeePrivate` | Private Info tab |
-| `uploadAvatar(id, file)` | `string` | Returns the public URL. Supabase Storage bucket `avatars` |
-| `listResumeItems(id)` | `ResumeItem[]` | Skills + certifications |
-| `addResumeItem(id, item)` | `ResumeItem` | The "+ Add Skills" control |
-| `removeResumeItem(itemId)` | `void` | |
-| `deactivateEmployee(id)` | `void` | Sets `is_active = false`. Never a hard delete |
+| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Reads `employee_directory`; includes derived `presence` |
+| `getEmployee(id)` | `EmployeeProfile` | Own full profile or the directory-safe profile of a coworker; private/salary fields are null unless RLS permits them |
+| `createEmployee(input)` | `{ employee, loginId }` | Admin/HR only. Sends an invite through the server-side employee-creation flow |
+| `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
+| `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
+| `uploadAvatar(file)` | `string` | `avatars` bucket |
 
 ## `attendance.ts`
 
 | function | returns | notes |
 |---|---|---|
-| `checkIn()` | `AttendanceRow` | Today, for the caller. Throws if already checked in today |
-| `checkOut()` | `AttendanceRow` | Throws if there is no open row today |
-| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Drives the header Check In / Check Out control |
-| `myAttendance(month)` | `AttendanceDay[]` | Day-wise for the caller, one entry per calendar day of `month`, with `workHours` and `extraHours` derived and gaps filled as absent |
-| `companyAttendance(date, { search? })` | `AttendanceDay[]` | **Admin/HR only.** Every employee for one day — the wireframe's admin list view |
-| `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave, totalWorkingDays }` | The count cards above the table |
+| `checkIn()` | `AttendanceRow` | Inserts today's row; errors if one already exists |
+| `checkOut()` | `AttendanceRow` | Updates the caller's open row for today |
+| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Drives the header control |
+| `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
+| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Admin/HR only |
+| `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |
 
 ## `timeOff.ts`
 
 | function | returns | notes |
 |---|---|---|
-| `myBalances()` | `Balance[]` | From `time_off_balances`. Feeds the "24 Days Available" cards |
-| `myRequests()` | `TimeOffRequest[]` | Employee list view |
-| `createRequest(input)` | `TimeOffRequest` | Computes working days in the range. Requires an attachment when the type says so |
-| `cancelRequest(id)` | `void` | Only while `pending` |
-| `uploadAttachment(file)` | `string` | Storage bucket `timeoff-attachments` |
-| `listTypes()` | `TimeOffType[]` | Populates the type select |
-| `pendingRequests()` | `TimeOffRequest[]` | **Admin/HR only.** The approval queue, newest first |
-| `allRequests({ search?, status? })` | `TimeOffRequest[]` | **Admin/HR only.** Full list view |
-| `reviewRequest(id, 'approved' \| 'rejected', comment?)` | `TimeOffRequest` | **Admin/HR only.** Stamps `reviewed_by` and `reviewed_at` |
-| `allocate(input)` | `TimeOffAllocation` | **Admin/HR only.** The Allocation form |
+| `myBalances()` | `{ paid: number; sick: number }` | Reads the caller's employee balances |
+| `myRequests()` | `LeaveRequest[]` | |
+| `createRequest(input)` | `LeaveRequest` | Calculates and sends `days`; type is `paid`, `sick`, or `unpaid` |
+| `cancelRequest(id)` | `void` | Own pending request only |
+| `uploadAttachment(file)` | `string` | `leave-documents` bucket; optional for MVP |
+| `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
+| `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
+| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; `status` is `approved` or `rejected`; approval adjusts balance atomically |
 
 ## `salary.ts`
 
-| function | returns | notes |
-|---|---|---|
-| `getStructure(employeeId)` | `{ structure, components }` | **Admin/HR only** — RLS denies an employee even their own row |
-| `updateWage(employeeId, wage)` | `{ structure, components }` | Persists the wage. Amounts are not stored; they recompute |
-| `updateComponent(id, patch)` | `SalaryComponent` | Change a computation type or a percentage |
-| `updateTaxes(employeeId, patch)` | `SalaryStructure` | PF percentages, professional tax |
-
-`frontend/src/lib/salary.ts` — **not a service**, a pure function, no Supabase
-import, owned by Praneet but readable by everyone:
-
-```ts
-computeSalary(wage: number, components: SalaryComponent[], taxes: TaxConfig): {
-  lines: { name: string; amount: number }[]
-  gross: number            // must equal wage
-  deductions: { name: string; amount: number }[]
-  employerCost: { name: string; amount: number }[]   // employer PF — shown, never subtracted
-  net: number
-}
-```
-
-The Salary Info tab calls it on every keystroke in the wage field — no round-trip,
-no loading state, the whole table just moves. Payroll calls the same function.
-Rules and worked example are in `SCHEMA.md`.
-
-## `lib/workdays.ts` — shared, and it must not be written twice
-
-`frontend/src/lib/workdays.ts` — a pure function, no Supabase import, owned by
-Praneet alongside `salary.ts`:
-
-```ts
-workingDaysBetween(start: string, end: string, daysPerWeek: number): number
-workingDaysInMonth(month: string, daysPerWeek: number): number
-```
-
-**Three callers need this and they must all agree:** `timeOff.createRequest`
-computes a request's `days`, `payroll.payableDays` computes
-`total_working_days`, and `attendance.attendanceSummary` computes the denominator
-of its counts. Three private copies is the realistic default, and then a leave
-request says 3 days while the payslip deducts 2 — a discrepancy that shows up
-directly on the salary slip, which is the first number a judge will check.
-
-One file, three callers, no drift. Same rule as `salary.ts`, and it earns the
-same unit test: month boundaries, a range that starts on a weekend, a single-day
-request, and a `daysPerWeek` other than 5.
-
-## `payroll.ts` — Tier 2
-
-| function | returns | notes |
-|---|---|---|
-| `payableDays(employeeId, month)` | `{ totalWorkingDays, payableDays, unpaidLeaveDays, missingDays }` | Attendance and approved leave decide this. The interesting query in the build |
-| `generatePayslip(employeeId, month)` | `Payslip` | **Admin/HR only.** Combines `payableDays` with `computeSalary` and snapshots the result into `breakdown` |
-| `myPayslips()` | `Payslip[]` | Read-only for the employee. Their salary view |
-| `getPayslip(id)` | `Payslip` | The printable slip |
-
-## Not services
-
-Charts, formatting, and date maths are `frontend/src/lib/`, not `services/`.
-A function that does not touch Supabase does not belong behind the data layer.
+`frontend/src/lib/salary.ts` is a pure calculation, not a Supabase service. It
+takes `monthlyWage` and returns Basic, HRA, Standard Allowance, Performance
+Bonus, LTA, Fixed Allowance, PF, Professional Tax, and net pay. Employee salary
+info reads their permitted `monthly_wage` from `employees`; Admin/HR edit that
+same column. There is no `payroll.ts`, payslip, or salary-component service in
+the MVP.
