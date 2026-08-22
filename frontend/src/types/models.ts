@@ -124,19 +124,3 @@ export const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   absent: 'Absent',
   leave: 'Leave',
 }
-
-/**
- * docs/SCHEMA.md: prefix + first two letters of each name + joining year +
- * a four-digit serial. Display only — sign-in is email and password.
- */
-export function buildLoginId(
-  prefix: string,
-  firstName: string,
-  lastName: string,
-  joiningYear: number,
-  serial: number,
-): string {
-  const part = (s: string) =>
-    (s.replace(/[^a-zA-Z]/g, '').toUpperCase() + 'XX').slice(0, 2)
-  return `${prefix.toUpperCase()}${part(firstName)}${part(lastName)}${joiningYear}${`${serial}`.padStart(4, '0')}`
-}

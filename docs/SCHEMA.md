@@ -26,7 +26,7 @@ Created with the first admin during company sign-up.
 |---|---|---|
 | `id` | uuid pk | |
 | `name` | text not null | e.g. `Odoo India` |
-| `login_prefix` | text | e.g. `OI`; used only when generating a display login ID |
+| `login_prefix` | text | Legacy nullable display setting; not used for authentication or new employee creation |
 | `logo_url` | text | company-logo Storage URL |
 | `created_at` | timestamptz default now() | |
 
@@ -40,7 +40,7 @@ information, salary, leave-allocation, or login-counter tables.
 |---|---|---|
 | `id` | uuid pk | → `auth.users(id)` on delete cascade |
 | `company_id` | uuid not null | → `companies(id)` |
-| `login_id` | text unique | Optional generated HR-facing ID, e.g. `OIJODO20220001`; email is the MVP sign-in credential |
+| `login_id` | text unique | Legacy nullable display field; new employees use work email and receive no login ID |
 | `role` | text not null | `admin`, `hr`, or `employee` |
 | `first_name` / `last_name` | text not null | |
 | `work_email` | text not null | Auth email |
@@ -183,7 +183,8 @@ temporary password, and returns that password once to the creating Admin/HR.
 The service-role key and plaintext password are never stored in the browser or
 database. The employee must replace the temporary password at first sign-in.
 Employees do not self-register. Email and password are the required sign-in
-path. A generated `login_id` is useful for display but is not an authentication
+path. Employee creation does not generate a separate `login_id`; any existing
+value is legacy display data and is not an authentication
 dependency in this MVP.
 
 Storage buckets: public `avatars` and `company-logos`, plus private

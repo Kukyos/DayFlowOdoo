@@ -13,14 +13,14 @@ import type { Role } from '@/types/models'
  * Admin/HR create an employee. This is the only way a person enters the
  * system — nobody self-registers (docs/AUTH.md §1).
  *
- * The system issues the login ID; it is never typed. The generated password is
- * shown **once**, at creation, and never again: it is not stored in plaintext,
- * not emailed from here, and not rendered on the profile afterwards.
+ * The employee signs in with their work email. The generated password is shown
+ * **once**, at creation, and never again: it is not stored in plaintext, not
+ * emailed from here, and not rendered on the profile afterwards.
  */
 export function AddEmployee() {
   const { isPrivileged } = useSession()
   const navigate = useNavigate()
-  const [created, setCreated] = useState<{ name: string; loginId: string; password: string } | null>(
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(
     null,
   )
   const [error, setError] = useState<string | null>(null)
@@ -82,13 +82,13 @@ export function AddEmployee() {
     }
     setBusy(true)
     try {
-      const { employee, loginId, temporaryPassword } = await createEmployee({
+      const { employee, temporaryPassword } = await createEmployee({
         ...form,
         manager_id: form.manager_id || null,
       })
       setCreated({
         name: fullName(employee),
-        loginId,
+        email: employee.work_email,
         // Generated server-side in the real flow and returned once. Never
         // stored in plaintext, never shown again after this screen.
         password: temporaryPassword,
@@ -105,15 +105,16 @@ export function AddEmployee() {
       <>
         <PageHeader title="Employee created" subtitle={`${created.name} can now sign in.`} />
         <Card className="max-w-xl">
-          <p className="t-label text-text-muted">Login ID</p>
-          <p className="t-data mt-1 text-2xl">{created.loginId}</p>
+          <p className="t-label text-text-muted">Sign-in email</p>
+          <p className="mt-1 text-lg font-semibold">{created.email}</p>
 
           <p className="t-label mt-6 text-text-muted">Temporary password</p>
           <p className="t-data mt-1 text-2xl">{created.password}</p>
 
           <p className="t-caption mt-6 rounded-control border border-danger-ink px-3 py-2 text-danger-ink">
-            Copy this now — it is shown once and cannot be retrieved. {created.name} must
-            change it at first sign-in.
+            Copy the temporary password now — it is shown once and cannot be retrieved. Share
+            the email and password with {created.name}, who must change the password at first
+            sign-in.
           </p>
 
           <div className="mt-6 flex gap-2">
@@ -137,7 +138,7 @@ export function AddEmployee() {
     <>
       <PageHeader
         title="Add employee"
-        subtitle="The login ID and first password are generated for you."
+        subtitle="The employee will sign in with their work email and a generated temporary password."
         actions={
           <Link to="/employees">
             <Button size="sm">Cancel</Button>

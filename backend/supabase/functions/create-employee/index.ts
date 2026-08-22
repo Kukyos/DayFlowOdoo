@@ -27,15 +27,6 @@ function randomPassword(): string {
   return `Df!7${Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("")}`;
 }
 
-function loginPart(value: string): string {
-  return `${value.replace(/[^a-z]/gi, "").toUpperCase()}XX`.slice(0, 2);
-}
-
-function randomLoginId(prefix: string, firstName: string, lastName: string, joiningYear: string): string {
-  const suffix = crypto.getRandomValues(new Uint32Array(1))[0].toString().padStart(10, "0").slice(-6);
-  return `${prefix}${loginPart(firstName)}${loginPart(lastName)}${joiningYear}${suffix}`;
-}
-
 const fail = (message: string, status = 400) => Response.json({ message }, { status });
 
 export default {
@@ -65,7 +56,7 @@ export default {
 
     const { data: caller, error: callerError } = await ctx.supabase
       .from("employees")
-      .select("id, company_id, role, is_active, companies(name, login_prefix)")
+      .select("id, company_id, role, is_active")
       .eq("id", authData.user.id)
       .single();
     if (callerError || !caller || !caller.is_active || !["admin", "hr"].includes(caller.role)) {
@@ -84,11 +75,7 @@ export default {
       if (!manager) return fail("Choose an active manager from your company.");
     }
 
-    const company = Array.isArray(caller.companies) ? caller.companies[0] : caller.companies;
-    const rawPrefix = text(company?.login_prefix) || text(company?.name).replace(/[^a-z]/gi, "").slice(0, 2);
-    const prefix = (rawPrefix || "DF").toUpperCase();
     const temporaryPassword = randomPassword();
-    let loginId = randomLoginId(prefix, firstName, lastName, joiningDate.slice(0, 4));
 
     const { data: createdAuth, error: createAuthError } = await ctx.supabaseAdmin.auth.admin.createUser({
       email,
@@ -103,7 +90,6 @@ export default {
     const profile = {
       id: createdAuth.user.id,
       company_id: caller.company_id,
-      login_id: loginId,
       role: body.role,
       first_name: firstName,
       last_name: lastName,
@@ -117,15 +103,11 @@ export default {
       must_change_password: true,
     };
 
-    let employee = null;
-    let insertError = null;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const result = await ctx.supabaseAdmin.from("employees").insert({ ...profile, login_id: loginId }).select("*").single();
-      employee = result.data;
-      insertError = result.error;
-      if (!insertError || insertError.code !== "23505") break;
-      loginId = randomLoginId(prefix, firstName, lastName, joiningDate.slice(0, 4));
-    }
+    const { data: employee, error: insertError } = await ctx.supabaseAdmin
+      .from("employees")
+      .insert(profile)
+      .select("*")
+      .single();
 
     if (insertError || !employee) {
       await ctx.supabaseAdmin.auth.admin.deleteUser(createdAuth.user.id);
@@ -134,7 +116,6 @@ export default {
 
     return Response.json({
       employee,
-      loginId,
       temporaryPassword,
     });
   }),

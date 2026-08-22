@@ -30,8 +30,7 @@ month.
   that absorbs the remainder so the components always total the wage exactly.
 Employees are created by HR, not by self-registration. The required sign-in path
 is email and password: HR receives a temporary password once, and the employee
-must replace it at first sign-in. A generated login ID such as `OIJODO20220001`
-is optional HR-facing display data, not a custom authentication system.
+must replace it at first sign-in. No separate login ID is generated.
 
 ## Stack
 
