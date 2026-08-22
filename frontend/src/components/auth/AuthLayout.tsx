@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button, Modal } from '@/components/ui'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import dayflowLogo from '@/assets/dayflow-df-logo.png'
-import { WorkweekMark } from './WorkweekMark'
+import { LoginIllustration } from './LoginIllustration'
 
 /**
  * The split auth layout: an inked header over a full-bleed colour field, with
@@ -13,6 +13,14 @@ import { WorkweekMark } from './WorkweekMark'
  * This is the one page background allowed to carry colour — DESIGN.md §2.5.
  * The field uses `--auth-panel`, its own token, so the accent colours that mean
  * a presence inside the app cannot leak onto a page background.
+ *
+ * The page never scrolls as a whole — `h-screen overflow-hidden` on the root
+ * locks it to the viewport. Sign-up's six-field form is taller than sign-in's
+ * two, and previously that extra height pushed the *entire* page (header,
+ * blue field, everything) past the viewport and made it scroll — which read
+ * as a layout glitch, not a form. Now only the centred illustration+form row
+ * scrolls internally, and only if a viewport is short enough to actually need
+ * it; header and footer furniture stay pinned in place either way.
  */
 export function AuthLayout({
   children,
@@ -26,8 +34,8 @@ export function AuthLayout({
   const [privacyOpen, setPrivacyOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg text-text">
-      <header className="flex items-center justify-between border-b border-border px-3 py-3 sm:px-8">
+    <div className="flex h-screen flex-col overflow-hidden bg-bg text-text">
+      <header className="flex shrink-0 items-center justify-between border-b border-border px-3 py-3 sm:px-8">
         <Link to="/" className="t-h3 font-display tracking-normal" aria-label="Dayflow home">
           Dayflow
         </Link>
@@ -62,12 +70,17 @@ export function AuthLayout({
         </div>
       </header>
 
-      <main className="relative flex flex-1 flex-col bg-auth-panel text-auth-panel-ink">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col items-center gap-8 px-4 py-8 sm:px-5 sm:py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
-          <div className="hidden w-full max-w-[520px] lg:block" aria-hidden="true">
-            <WorkweekMark />
+      <main className="relative flex min-h-0 flex-1 flex-col bg-auth-panel text-auth-panel-ink">
+        {/* min-h-0 is load-bearing: a flex child's default min-height is its
+            content size, which blocks it shrinking below that — without this,
+            a tall form pushes main past the viewport regardless of h-screen
+            on the root. overflow-y-auto is the fallback for a viewport too
+            short to fit the form at all; on ordinary screens it never engages. */}
+        <div className="mx-auto flex w-full max-w-[1400px] min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12 lg:py-6">
+          <div className="hidden w-full max-w-[480px] shrink justify-center lg:flex" aria-hidden="true">
+            <LoginIllustration />
           </div>
-          <div className="w-full max-w-[440px]">{children}</div>
+          <div className="w-full max-w-[440px] shrink-0">{children}</div>
         </div>
 
         {/* Bottom furniture stays visible and compact on phones (Pooja) and
@@ -75,7 +88,7 @@ export function AuthLayout({
             Two pills plus the logo measure ~391px at the base breakpoint —
             wider than a 360-390px phone — so it stacks below `sm` and only
             sits in one row once there is room (640px+) for both of them. */}
-        <div className="pointer-events-none flex flex-col items-center gap-3 px-4 pb-6 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12 lg:pb-8">
+        <div className="pointer-events-none flex shrink-0 flex-col items-center gap-3 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12 lg:pb-6">
           <img
             src={dayflowLogo}
             alt=""
@@ -240,8 +253,8 @@ export function AuthCard({
 }) {
   return (
     <>
-      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-8">
-        <h1 className="t-label mb-6 text-center">{title}</h1>
+      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-6 lg:p-6">
+        <h1 className="t-label mb-4 text-center">{title}</h1>
         {children}
       </div>
       {footer && <div className="mt-5 text-center">{footer}</div>}

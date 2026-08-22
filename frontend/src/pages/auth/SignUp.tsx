@@ -140,7 +140,7 @@ export function SignUp() {
             </Button>
           </div>
         ) : (
-          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
           {error && (
             <p
               role="alert"
@@ -232,7 +232,7 @@ export function SignUp() {
           </form>
         )}
 
-        <p className="t-caption mt-5 border-t border-border-soft pt-4 text-text-muted">
+        <p className="t-caption mt-4 border-t border-border-soft pt-3 text-text-muted">
           This creates the company and makes you its first admin. You add your
           people afterwards — they never sign up themselves.
         </p>
