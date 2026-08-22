@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   ErrorState,
-  PageHeader,
   PresenceDot,
   Spinner,
   StatCard,
@@ -15,7 +14,25 @@ import { useAsync } from '@/hooks/useAsync'
 import { formatDate, formatTime } from '@/lib/dates'
 import { getDashboardSummary } from '@/services/dashboard'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
+import boyGreeting from '@/assets/employee-boy-greeting.png'
 import dashboardIllustration from '@/assets/dashboard-support-illustration.png'
+import girlGreeting from '@/assets/employee-girl-greeting.png'
+
+/**
+ * Picks a greeting mascot per employee. Athira/Pooja's original picked from a
+ * hardcoded set of fixture ids ('e-01', 'e-03', ...) — meaningless now that
+ * employee.id is a real Supabase UUID, so every real user would have fallen
+ * through to the same image. A stable hash of the real id keeps the intent
+ * (some visual variety across people) without depending on fixture data.
+ */
+function greetingImageFor(employeeId: string | undefined): string {
+  if (!employeeId) return boyGreeting
+  let hash = 0
+  for (let i = 0; i < employeeId.length; i += 1) {
+    hash = (hash * 31 + employeeId.charCodeAt(i)) | 0
+  }
+  return hash % 2 === 0 ? girlGreeting : boyGreeting
+}
 
 export function Dashboard() {
   const { employee, isPrivileged } = useSession()
@@ -39,18 +56,26 @@ export function Dashboard() {
         className="pointer-events-none absolute right-[calc(50%_-_50vw)] -bottom-10 -z-10 w-[275px] select-none sm:w-[325px] lg:w-[350px]"
       />
 
-      <PageHeader
-        title={`Good to see you, ${employee?.first_name}`}
-        subtitle={
-          data.today.row?.check_in
-            ? `Checked in at ${formatTime(data.today.row.check_in)}${
-                data.today.row.check_out
-                  ? `, out at ${formatTime(data.today.row.check_out)}.`
-                  : ' — still in.'
-              }`
-            : 'You have not checked in today. The control is in the header.'
-        }
-      />
+      <div className="mb-3 flex flex-wrap items-center gap-4 sm:gap-5">
+        <div>
+          <h1 className="t-h1">Good to see you, {employee?.first_name}</h1>
+          <p className="t-caption mt-2 text-text-muted">
+            {data.today.row?.check_in
+              ? `Checked in at ${formatTime(data.today.row.check_in)}${
+                  data.today.row.check_out
+                    ? `, out at ${formatTime(data.today.row.check_out)}.`
+                    : ' — still in.'
+                }`
+              : 'You have not checked in today. The control is in the header.'}
+          </p>
+        </div>
+        <img
+          src={greetingImageFor(employee?.id)}
+          alt=""
+          aria-hidden="true"
+          className="h-28 w-28 shrink-0 object-contain sm:h-32 sm:w-32"
+        />
+      </div>
 
       <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {isPrivileged ? (
