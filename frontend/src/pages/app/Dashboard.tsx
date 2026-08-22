@@ -10,7 +10,7 @@ import {
   StatCard,
   StatusChip,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate, formatTime, monthKey, today } from '@/lib/dates'
 import { attendanceSummary, todayStatus } from '@/services/attendance'
@@ -30,7 +30,7 @@ export function Dashboard() {
       myRequests(employee.id),
       isPrivileged ? pendingRequests() : Promise.resolve([]),
     ])
-    const status = await todayStatus(employee.id)
+    const status = await todayStatus()
     return { directory, attendance, balances, mine, pending, status }
   }, [employee?.id, isPrivileged])
 

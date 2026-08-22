@@ -14,7 +14,7 @@ import {
   Td,
   Th,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import {
   addDays,

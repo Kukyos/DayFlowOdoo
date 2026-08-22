@@ -1,19 +1,60 @@
-/** STUB — fixture-backed. Signatures from docs/SERVICES.md. */
 import * as fx from '@/fixtures'
-import { buildLoginId, isPrivileged } from '@/types/models'
-import type { DirectoryEmployee, Employee, Role } from '@/types/models'
-import { clone, latency, ServiceError } from './client'
+import { buildLoginId } from '@/types/models'
+import type { DirectoryEmployee, Employee, EmployeeProfile, Role } from '@/types/models'
+import { ServiceError, clone, latency, supabaseClient, unwrap } from './client'
+
+type DirectoryRow = {
+  id: string | null
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  job_position: string | null
+  department: string | null
+  location: string | null
+  work_email: string | null
+  manager_id: string | null
+  about: string | null
+  skills: string[] | null
+  presence: string | null
+}
+
+function toDirectoryEmployee(row: DirectoryRow): DirectoryEmployee {
+  if (!row.id || !row.first_name || !row.last_name || !row.work_email) {
+    throw new ServiceError('The employee directory returned an incomplete profile.')
+  }
+  if (row.presence !== 'present' && row.presence !== 'leave' && row.presence !== 'absent') {
+    throw new ServiceError('The employee directory returned an unsupported presence status.')
+  }
+  return {
+    ...row,
+    id: row.id,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    work_email: row.work_email,
+    presence: row.presence,
+  }
+}
+
+function toEmployee(row: Omit<Employee, 'role'> & { role: string }): Employee {
+  if (row.role !== 'admin' && row.role !== 'hr' && row.role !== 'employee') {
+    throw new ServiceError('The employee record has an unsupported access role.')
+  }
+  return { ...row, role: row.role }
+}
 
 /**
- * The directory view. Only the columns `employee_directory` exposes —
+ * The directory RPC. Only the columns `list_employee_directory()` exposes —
  * no wage, no bank details, no leave balances. If a field is missing here it is
  * because RLS will not return it, not because it was forgotten.
  */
 export async function listEmployees(opts: { search?: string; department?: string } = {}) {
-  await latency()
+  const { data, error } = await supabaseClient()
+    .rpc('list_employee_directory')
+  const employees = unwrap({ data, error })
   const q = opts.search?.trim().toLowerCase() ?? ''
-  return fx.employees
-    .filter((e) => e.is_active)
+  return employees
+    .map(toDirectoryEmployee)
+    .sort((a, b) => a.first_name.localeCompare(b.first_name))
     .filter((e) => !opts.department || e.department === opts.department)
     .filter((e) =>
       !q ||
@@ -22,61 +63,55 @@ export async function listEmployees(opts: { search?: string; department?: string
       (e.department ?? '').toLowerCase().includes(q) ||
       (e.location ?? '').toLowerCase().includes(q),
     )
-    .map<DirectoryEmployee>((e) => ({
-      id: e.id,
-      first_name: e.first_name,
-      last_name: e.last_name,
-      avatar_url: e.avatar_url,
-      job_position: e.job_position,
-      department: e.department,
-      location: e.location,
-      work_email: e.work_email,
-      manager_id: e.manager_id,
-      about: e.about,
-      skills: e.skills,
-      presence: fx.presenceById[e.id] ?? 'absent',
-    }))
 }
 
 /**
- * Own row in full; a coworker's row with the protected columns nulled.
- *
- * The nulling is what RLS will do server-side. Doing it here too means the
- * profile page is built against the shape it will actually receive, instead of
- * discovering half the page is blank during Stage 4.
+ * RLS returns a full row for the caller or a privileged colleague. For a
+ * normal coworker the full-row query returns nothing, then the safe directory
+ * view supplies the deliberately smaller profile shape.
  */
-export async function getEmployee(
-  id: string,
-  viewer: { id: string; role: Role },
-): Promise<Employee> {
-  await latency()
-  const found = fx.employees.find((e) => e.id === id)
-  if (!found) throw new ServiceError('That employee no longer exists.')
+export async function getEmployee(id: string): Promise<EmployeeProfile> {
+  const client = supabaseClient()
+  const fullResult = await client.from('employees').select('*').eq('id', id).maybeSingle()
+  if (fullResult.error) throw new ServiceError(fullResult.error.message, fullResult.error)
 
-  const maySeeAll = viewer.id === id || isPrivileged(viewer.role)
-  if (maySeeAll) return clone(found)
-
-  return {
-    ...clone(found),
-    date_of_birth: null,
-    address: null,
-    bank_account_number: null,
-    ifsc_code: null,
-    pan_no: null,
-    uan_no: null,
-    monthly_wage: null,
-    paid_leave_balance: null,
-    sick_leave_balance: null,
-    mobile: null,
+  const directoryResult = await client.rpc('list_employee_directory')
+  if (directoryResult.error) {
+    throw new ServiceError('Could not load the employee directory.', directoryResult.error)
   }
+  const directoryRow = directoryResult.data.find((row) => row.id === id)
+  if (!directoryRow) {
+    throw new ServiceError('That employee no longer exists or is outside your company.')
+  }
+  const directory = toDirectoryEmployee(directoryRow)
+  const employee = fullResult.data ? toEmployee(fullResult.data) : directory
+  return { employee, presence: directory.presence }
 }
 
-export async function updateEmployee(id: string, patch: Partial<Employee>) {
-  await latency()
-  const found = fx.employees.find((e) => e.id === id)
-  if (!found) throw new ServiceError('That employee no longer exists.')
-  Object.assign(found, patch)
-  return clone(found)
+export type EmployeeUpdate = Partial<Pick<
+  Employee,
+  | 'about'
+  | 'skills'
+  | 'mobile'
+  | 'address'
+  | 'avatar_url'
+  | 'date_of_birth'
+  | 'bank_account_number'
+  | 'ifsc_code'
+  | 'pan_no'
+  | 'uan_no'
+  | 'monthly_wage'
+>>
+
+export async function updateEmployee(id: string, patch: EmployeeUpdate): Promise<Employee> {
+  const { data, error } = await supabaseClient()
+    .from('employees')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single()
+  const employee = unwrap({ data, error }, 'Could not save that employee profile.')
+  return toEmployee(employee)
 }
 
 export async function createEmployee(input: {
@@ -116,12 +151,16 @@ export async function createEmployee(input: {
     paid_leave_balance: 24,
     sick_leave_balance: 7,
     is_active: true,
+    must_change_password: true,
     created_at: new Date().toISOString(),
     ...input,
   }
   fx.employees.push(employee)
   fx.presenceById[employee.id] = 'absent'
-  return { employee: clone(employee), loginId }
+  // Fixture-only stand-in. Milestone 8 replaces this with a cryptographically
+  // secure value generated by the server-side employee-creation function.
+  const temporaryPassword = `Df-${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`
+  return { employee: clone(employee), loginId, temporaryPassword }
 }
 
 export async function deactivateEmployee(id: string) {
@@ -130,5 +169,7 @@ export async function deactivateEmployee(id: string) {
   if (found) found.is_active = false
 }
 
+// The Add Employee fixture workflow remains until Milestone 8. The live
+// directory filters itself from `list_employee_directory()` above.
 export const departments = (): string[] =>
   [...new Set(fx.employees.map((e) => e.department).filter(Boolean))] as string[]

@@ -1,8 +1,8 @@
-/** STUB — fixture-backed. Signatures from docs/SERVICES.md. */
+/** Milestone 4 wires today's action; the history views remain fixture-backed until Milestone 5. */
 import * as fx from '@/fixtures'
 import { daysInMonth, isWeekend, monthKey, today, workHours } from '@/lib/dates'
 import type { AttendanceDay, AttendanceRow } from '@/types/models'
-import { clone, latency, ServiceError } from './client'
+import { clone, latency, ServiceError, supabaseClient, unwrap } from './client'
 
 const name = (id: string) => {
   const e = fx.byId(id)
@@ -20,11 +20,14 @@ const toDay = (r: AttendanceRow): AttendanceDay => ({
   work_hours: workHours(r.check_in, r.check_out),
 })
 
-export async function todayStatus(employeeId: string) {
-  await latency(140)
-  const row = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === today(),
-  )
+export async function todayStatus() {
+  const { data, error } = await supabaseClient()
+    .from('attendance')
+    .select('*')
+    .eq('work_date', today())
+    .maybeSingle()
+  if (error) throw new ServiceError(error.message, error)
+  const row = data as AttendanceRow | null
   return {
     checkedIn: Boolean(row?.check_in && !row.check_out),
     row: row ? clone(row) : null,
@@ -35,43 +38,14 @@ export async function todayStatus(employeeId: string) {
  * One row per employee per day — the unique constraint in docs/SCHEMA.md.
  * A second check-in is an error, not a second row.
  */
-export async function checkIn(employeeId: string): Promise<AttendanceRow> {
-  await latency()
-  const day = today()
-  const existing = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === day,
-  )
-  if (existing?.check_in) throw new ServiceError('You have already checked in today.')
-
-  if (existing) {
-    existing.check_in = new Date().toISOString()
-    existing.status = 'present'
-    fx.presenceById[employeeId] = 'present'
-    return clone(existing)
-  }
-  const row: AttendanceRow = {
-    id: `a-${employeeId}-${day}`,
-    employee_id: employeeId,
-    work_date: day,
-    check_in: new Date().toISOString(),
-    check_out: null,
-    status: 'present',
-    created_at: new Date().toISOString(),
-  }
-  fx.attendance.push(row)
-  fx.presenceById[employeeId] = 'present'
-  return clone(row)
+export async function checkIn(): Promise<AttendanceRow> {
+  const { data, error } = await supabaseClient().rpc('check_in')
+  return unwrap({ data, error }, 'Could not check you in.') as AttendanceRow
 }
 
-export async function checkOut(employeeId: string): Promise<AttendanceRow> {
-  await latency()
-  const row = fx.attendance.find(
-    (a) => a.employee_id === employeeId && a.work_date === today(),
-  )
-  if (!row?.check_in) throw new ServiceError('You have not checked in today.')
-  if (row.check_out) throw new ServiceError('You have already checked out today.')
-  row.check_out = new Date().toISOString()
-  return clone(row)
+export async function checkOut(): Promise<AttendanceRow> {
+  const { data, error } = await supabaseClient().rpc('check_out')
+  return unwrap({ data, error }, 'Could not check you out.') as AttendanceRow
 }
 
 /**

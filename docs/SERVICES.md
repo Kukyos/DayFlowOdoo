@@ -44,7 +44,7 @@ type SignUpCompanyResult = {
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |
 | `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
-| `changePassword(newPassword)` | `void` | |
+| `changePassword(newPassword)` | `void` | Updates the Auth password; the private Auth trigger clears `must_change_password` |
 | `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
 
 ## `company.ts`
@@ -59,9 +59,9 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Reads `employee_directory`; includes derived `presence` |
-| `getEmployee(id)` | `EmployeeProfile` | Own full profile or the directory-safe profile of a coworker; private/salary fields are null unless RLS permits them |
-| `createEmployee(input)` | `{ employee, loginId }` | Admin/HR only. Sends an invite through the server-side employee-creation flow |
+| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
+| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
+| `createEmployee(input)` | `{ employee, loginId, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
 | `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
 | `uploadAvatar(file)` | `string` | `avatars` bucket |
@@ -70,9 +70,9 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `checkIn()` | `AttendanceRow` | Inserts today's row; errors if one already exists |
-| `checkOut()` | `AttendanceRow` | Updates the caller's open row for today |
-| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Drives the header control |
+| `checkIn()` | `AttendanceRow` | Calls the guarded server action for the caller; errors if one already exists |
+| `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
+| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
 | `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
 | `companyAttendance(date, { search? })` | `AttendanceDay[]` | Admin/HR only |
 | `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |

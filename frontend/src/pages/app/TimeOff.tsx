@@ -17,7 +17,7 @@ import {
   Textarea,
   Th,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { addDays, formatDate, today, workingDaysBetween } from '@/lib/dates'
 import {
@@ -71,7 +71,7 @@ export function TimeOff() {
 }
 
 function MyTimeOff() {
-  const { employee, refresh } = useSession()
+  const { employee, refreshEmployee } = useSession()
   const [open, setOpen] = useState(false)
 
   const { status, data, error, reload } = useAsync(async () => {
@@ -166,7 +166,7 @@ function MyTimeOff() {
         onClose={() => setOpen(false)}
         onCreated={() => {
           reload()
-          refresh()
+        void refreshEmployee()
         }}
       />
     </>
@@ -301,7 +301,7 @@ function RequestModal({
 }
 
 function Approvals() {
-  const { employee, refresh } = useSession()
+  const { employee, refreshEmployee } = useSession()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending')
   const q = useDebounced(search)
@@ -320,7 +320,7 @@ function Approvals() {
     try {
       await reviewRequest(id, decision, employee.id)
       reload()
-      refresh()
+      void refreshEmployee()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that decision.')
     } finally {

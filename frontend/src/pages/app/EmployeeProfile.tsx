@@ -8,20 +8,18 @@ import {
   Field,
   Input,
   PageHeader,
-  PresenceChip,
   Spinner,
   Tabs,
   Textarea,
   cx,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
 import { getEmployee, updateEmployee } from '@/services/employees'
-import * as fx from '@/fixtures'
-import { fullName } from '@/types/models'
-import type { Employee } from '@/types/models'
+import { fullName, isFullEmployee } from '@/types/models'
+import type { DirectoryEmployee, Employee } from '@/types/models'
 
 /**
  * One page for three cases: my own profile, a coworker's profile, and an
@@ -34,13 +32,13 @@ import type { Employee } from '@/types/models'
  */
 export function EmployeeProfile({ self = false }: { self?: boolean }) {
   const { id } = useParams()
-  const { employee: me, isPrivileged, refresh } = useSession()
+  const { employee: me, isPrivileged, refreshEmployee } = useSession()
   const targetId = self ? me?.id : id
 
   const { status, data, error, reload } = useAsync(
     async () => {
       if (!targetId || !me) throw new Error('Not signed in.')
-      return getEmployee(targetId, { id: me.id, role: me.role })
+      return getEmployee(targetId)
     },
     [targetId, me?.id, me?.role],
   )
@@ -50,12 +48,13 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 
   return (
     <ProfileBody
-      employee={data}
-      isSelf={data.id === me?.id}
+      employee={data.employee}
+      presence={data.presence}
+      isSelf={data.employee.id === me?.id}
       isPrivileged={isPrivileged}
       onSaved={() => {
         reload()
-        refresh()
+        void refreshEmployee()
       }}
     />
   )
@@ -63,11 +62,13 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 
 function ProfileBody({
   employee,
+  presence,
   isSelf,
   isPrivileged,
   onSaved,
 }: {
-  employee: Employee
+  employee: Employee | DirectoryEmployee
+  presence: 'present' | 'leave' | 'absent'
   isSelf: boolean
   isPrivileged: boolean
   onSaved: () => void
@@ -80,17 +81,16 @@ function ProfileBody({
       { id: 'work', label: 'Work Info' },
       { id: 'resume', label: 'Resume' },
     ]
-    if (isSelf || isPrivileged) list.push({ id: 'private', label: 'Private Info' })
+    if (isFullEmployee(employee)) list.push({ id: 'private', label: 'Private Info' })
     // Own salary is readable; only Admin/HR can change it (TASKS 3.4). A
     // coworker gets no tab at all, because the service returns their wage as
     // null — the tab would be empty, which reads as broken rather than denied.
-    if (isSelf || isPrivileged) list.push({ id: 'salary', label: 'Salary Info' })
+    if (isFullEmployee(employee)) list.push({ id: 'salary', label: 'Salary Info' })
     return list
-  }, [isSelf, isPrivileged])
+  }, [employee])
 
   const [tab, setTab] = useState('work')
   const active = tabs.some((t) => t.id === tab) ? tab : 'work'
-  const presence = fx.presenceById[employee.id] ?? 'absent'
 
   return (
     <>
@@ -117,13 +117,13 @@ function ProfileBody({
             <p className="t-caption mt-1 text-text-muted">
               {employee.job_position} · {employee.location}
             </p>
-            {employee.login_id && (
+            {isFullEmployee(employee) && employee.login_id && (
               <p className="t-data mt-2 text-text-muted">{employee.login_id}</p>
             )}
           </div>
           <div className="ml-auto flex flex-col items-end gap-2">
-            <PresenceChip presence={presence} />
-            {employee.date_of_joining && (
+            <span className="t-label text-text-muted">{presence === 'present' ? 'In today' : presence === 'leave' ? 'On leave' : 'Not in today'}</span>
+            {isFullEmployee(employee) && employee.date_of_joining && (
               <span className="t-caption text-text-muted">
                 Joined {formatDate(employee.date_of_joining)}
               </span>
@@ -139,10 +139,10 @@ function ProfileBody({
         {active === 'resume' && (
           <Resume employee={employee} editable={isSelf} onSaved={onSaved} />
         )}
-        {active === 'private' && (
+        {active === 'private' && isFullEmployee(employee) && (
           <PrivateInfo employee={employee} editable={isSelf || isPrivileged} onSaved={onSaved} />
         )}
-        {active === 'salary' && (
+        {active === 'salary' && isFullEmployee(employee) && (
           <SalaryInfo employee={employee} editable={isPrivileged} onSaved={onSaved} />
         )}
       </div>
@@ -159,9 +159,7 @@ const Row = ({ label, value }: { label: string; value: string | null | undefined
   </div>
 )
 
-function WorkInfo({ employee }: { employee: Employee }) {
-  const manager = employee.manager_id ? fx.byId(employee.manager_id) : null
-  const reports = fx.employees.filter((e) => e.manager_id === employee.id)
+function WorkInfo({ employee }: { employee: Employee | DirectoryEmployee }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -171,34 +169,8 @@ function WorkInfo({ employee }: { employee: Employee }) {
         <Row label="Department" value={employee.department} />
         <Row label="Location" value={employee.location} />
         <Row label="Work email" value={employee.work_email} />
-        {/* Mobile is nulled for a coworker, so it renders as an em dash. */}
-        <Row label="Mobile" value={employee.mobile} />
-        <Row
-          label="Manager"
-          value={manager ? fullName(manager) : 'No manager on record'}
-        />
-      </Card>
-
-      <Card>
-        <h2 className="t-h3 mb-3">Reports</h2>
-        {reports.length === 0 ? (
-          <p className="t-caption py-3 text-text-muted">Nobody reports to {employee.first_name}.</p>
-        ) : (
-          <ul className="flex flex-col">
-            {reports.map((r) => (
-              <li key={r.id}>
-                <Link
-                  to={`/employees/${r.id}`}
-                  className="flex items-center gap-3 border-b border-border-soft py-3 hover:bg-neutral-fill"
-                >
-                  <Avatar name={fullName(r)} size={34} />
-                  <span className="t-caption">{fullName(r)}</span>
-                  <span className="t-label ml-auto text-text-muted">{r.job_position}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {isFullEmployee(employee) && <Row label="Mobile" value={employee.mobile} />}
+        <Row label="Manager" value={employee.manager_id ? 'Assigned' : 'No manager on record'} />
       </Card>
     </div>
   )
@@ -209,7 +181,7 @@ function Resume({
   editable,
   onSaved,
 }: {
-  employee: Employee
+  employee: Employee | DirectoryEmployee
   editable: boolean
   onSaved: () => void
 }) {

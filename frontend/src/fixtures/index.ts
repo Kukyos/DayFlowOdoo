@@ -169,6 +169,7 @@ export const employees: Employee[] = seeds.map((s) => {
     paid_leave_balance: 24 - (n % 6),
     sick_leave_balance: 7 - (n % 3),
     is_active: true,
+    must_change_password: false,
     created_at: `${s.joined}T04:00:00Z`,
   }
 })

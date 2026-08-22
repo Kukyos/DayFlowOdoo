@@ -12,15 +12,15 @@ import {
   Select,
   Spinner,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
-import { departments, listEmployees } from '@/services/employees'
+import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
 
 /**
  * The employee directory — the hero screen.
  *
- * Reads `employee_directory`, which exposes only the safe columns. No wage, no
+ * Calls `list_employee_directory()`, which returns only safe columns. No wage, no
  * bank details, no leave balance ever reaches this page, because they are not
  * on the type it receives.
  */
@@ -34,6 +34,13 @@ export function Directory() {
     () => listEmployees({ search: q, department: department || undefined }),
     [q, department],
   )
+  const availableDepartments = [
+    ...new Set(
+      (data ?? [])
+        .map((employee) => employee.department)
+        .filter((department): department is string => Boolean(department)),
+    ),
+  ]
 
   return (
     <>
@@ -65,7 +72,7 @@ export function Directory() {
           className="max-w-[200px]"
         >
           <option value="">All departments</option>
-          {departments().map((d) => (
+          {availableDepartments.map((d) => (
             <option key={d} value={d}>
               {d}
             </option>
