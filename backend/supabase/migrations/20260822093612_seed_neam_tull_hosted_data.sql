@@ -1,0 +1,6 @@
+-- Migration-history placeholder for a one-off hosted demo-data seed.
+--
+-- The linked project already records this migration as applied. Its original
+-- statements contained environment-specific Auth users and credentials, so
+-- they must not be replayed or committed. Reproducible local demo data belongs
+-- in ../seed.sql and is loaded by `supabase db reset --local`.
