@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
 import { Button, Field, Input } from '@/components/ui'
 import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
@@ -14,6 +14,7 @@ import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
  * assigns `admin` rather than trusting anything the client sends.
  */
 export function SignUp() {
+  const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [form, setForm] = useState({
     companyName: '',
