@@ -110,6 +110,30 @@ first"*; accent fills are scoped to *"featured or category"* surfaces. So:
 This is also the plan's own lesson: a one-accent design system cannot carry a
 categorical palette, so do not try to make it carry two meanings at once.
 
+### 2.5 The auth pages are the one full-bleed colour field
+
+§1 says accent colour is never a page background, and §2.4 confines accent fills
+to card-sized surfaces. **The sign-in and sign-up pages are the documented
+exception**, because the reference's own auth page is a full-bleed field with the
+form floating on it, and that is the layout the team chose to follow.
+
+It is safe there and nowhere else: the auth pages carry no presence chips, so
+there is no status to collide with. To keep it from leaking, the field has its
+own token rather than reusing `--accent-alt`:
+
+| token | light | dark | role |
+|---|---|---|---|
+| `--auth-panel` | `#bed4fb` | `#16233c` | the auth field. **Auth routes only** |
+| `--auth-panel-ink` | `#06152e` | `#dbe6fa` | text and illustration strokes on it |
+
+Note the dark value is *not* the light one. §2.1's "accent fills do not change
+between themes" was reasoned for chips; cornflower across half a viewport next to
+a near-black canvas is glare rather than contrast, so dark keeps the hue and
+drops the value. The illustration strokes use `currentColor` and invert with it.
+
+Anything inside the app shell that wants a coloured background is wrong. Use a
+bordered card.
+
 ---
 
 ## 3. Tokens
