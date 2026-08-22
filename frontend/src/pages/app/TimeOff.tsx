@@ -18,6 +18,7 @@ import {
   Textarea,
   Th,
 } from '@/components/ui'
+import { YearCalendar } from '@/components/timeoff/YearCalendar'
 import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { addDays, formatDate, today, workingDaysBetween } from '@/lib/dates'
@@ -80,6 +81,7 @@ export function TimeOff() {
 function MyTimeOff() {
   const { employee, refreshEmployee } = useSession()
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<'calendar' | 'list'>('calendar')
 
   const { status, data, error, reload } = useAsync(async () => {
     if (!employee) throw new Error('Not signed in.')
@@ -102,7 +104,7 @@ function MyTimeOff() {
 
       {status === 'ready' && (
         <>
-          <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mb-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <BalanceCard label="Paid Time Off" days={data.balances.paid} />
             <BalanceCard label="Sick Leave" days={data.balances.sick} />
             <Card className="flex flex-col justify-between gap-4">
@@ -118,12 +120,31 @@ function MyTimeOff() {
             </Card>
           </div>
 
-          {data.requests.length === 0 ? (
+          <div className="mb-5 flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant={view === 'calendar' ? 'strong' : 'default'}
+              onClick={() => setView('calendar')}
+            >
+              Calendar
+            </Button>
+            <Button
+              size="sm"
+              variant={view === 'list' ? 'strong' : 'default'}
+              onClick={() => setView('list')}
+            >
+              List
+            </Button>
+          </div>
+
+          {data.requests.length === 0 && view === 'list' ? (
             <EmptyState
               title="No requests yet"
               body="When you book time off it shows here, along with where it has got to."
               action={<Button size="sm" onClick={() => setOpen(true)}>New request</Button>}
             />
+          ) : view === 'calendar' ? (
+            <YearCalendar requests={data.requests} />
           ) : (
             <Table
               head={
