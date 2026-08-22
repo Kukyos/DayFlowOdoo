@@ -23,6 +23,7 @@ export function AuthLayout({
 }) {
   const [theme, setThemeState] = useState<Theme>(currentTheme)
   const [termsOpen, setTermsOpen] = useState(false)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
@@ -78,18 +79,30 @@ export function AuthLayout({
             className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
             aria-hidden="true"
           />
-          <button
-            type="button"
-            onClick={() => setTermsOpen(true)}
-            className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption"
-          >
-            Terms &amp; Conditions
-          </button>
+          <div className="pointer-events-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPrivacyOpen(true)}
+              className="rounded-full border border-current px-4 py-2 t-caption"
+            >
+              Privacy Policy
+            </button>
+            <button
+              type="button"
+              onClick={() => setTermsOpen(true)}
+              className="rounded-full border border-current px-4 py-2 t-caption"
+            >
+              Terms &amp; Conditions
+            </button>
+          </div>
         </div>
       </main>
 
       <Modal open={termsOpen} onClose={() => setTermsOpen(false)} title="Terms and Conditions">
         <TermsContent />
+      </Modal>
+      <Modal open={privacyOpen} onClose={() => setPrivacyOpen(false)} title="Privacy Policy">
+        <PrivacyContent />
       </Modal>
     </div>
   )
@@ -145,6 +158,60 @@ function TermsContent() {
           This is an early build and these terms may change as the product
           does. Material changes will be reflected here before they take
           effect.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** Plain-language MVP privacy policy. Placeholder legal copy, not reviewed counsel. */
+function PrivacyContent() {
+  return (
+    <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1 t-body text-text-muted">
+      <p>
+        This explains what Dayflow stores about you and your company, and who
+        can see it.
+      </p>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">1. What we store</h3>
+        <p>
+          Account details (name, work email), employment data (role,
+          department, attendance, leave balances), and — for admins and HR
+          only — wage and bank details entered for payroll purposes. Nothing
+          beyond what a page on Dayflow actually asks for.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">2. Who can see it</h3>
+        <p>
+          Coworkers see only directory-safe fields: name, position, department,
+          and whether you are in today. Private information, salary, and bank
+          details are visible to you and to your company's admin/HR officers
+          only, enforced at the database level, not just hidden in the
+          interface.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">3. Company isolation</h3>
+        <p>
+          Your data is scoped to your company. Nobody outside it — no other
+          company on Dayflow — can query or view your records.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">4. How it's used</h3>
+        <p>
+          Solely to run the product: showing your directory, tracking
+          attendance, processing leave requests, and computing your salary
+          breakdown. It is not sold, and it is not used for advertising.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">5. Your controls</h3>
+        <p>
+          You can update your own profile, private details, and resume at any
+          time from My Profile. To correct or remove data you cannot edit
+          yourself, contact your company's admin or HR officer.
         </p>
       </div>
     </div>
