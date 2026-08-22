@@ -17,6 +17,7 @@ export const isPrivileged = (role: Role | undefined | null): boolean =>
   role === 'admin' || role === 'hr'
 
 export type Company = Tables<'companies'>
+export type Notification = Tables<'notifications'>
 
 /**
  * The caller's own row, or an employee row an admin may read in full.

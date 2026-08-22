@@ -58,20 +58,80 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          time_off_types: string[]
+          workday_end: string
+          workday_start: string
+          working_days: number[]
         }
         Insert: {
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
+          time_off_types?: string[]
+          workday_end?: string
+          workday_start?: string
+          working_days?: number[]
         }
         Update: {
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
+          time_off_types?: string[]
+          workday_end?: string
+          workday_start?: string
+          working_days?: number[]
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          leave_request_id: string | null
+          message: string
+          read_at: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          leave_request_id?: string | null
+          message: string
+          read_at?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          leave_request_id?: string | null
+          message?: string
+          read_at?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_leave_request_id_fkey"
+            columns: ["leave_request_id"]
+            isOneToOne: false
+            referencedRelation: "leave_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employees: {
         Row: {
