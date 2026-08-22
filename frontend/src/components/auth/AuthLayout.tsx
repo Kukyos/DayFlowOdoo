@@ -61,7 +61,7 @@ export function AuthLayout({
       </header>
 
       <main className="relative flex flex-1 flex-col bg-auth-panel text-auth-panel-ink">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col items-center gap-10 px-5 py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col items-center gap-8 px-4 py-8 sm:px-5 sm:py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
           <div className="hidden w-full max-w-[520px] lg:block" aria-hidden="true">
             <WorkweekMark />
           </div>
