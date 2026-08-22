@@ -80,7 +80,15 @@ other's work.
 
 ## 3. Stack (locked)
 
-React 18 · TypeScript · Vite · Tailwind · React Router v6 · Supabase · Vercel
+React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel
+
+> **Deviation from the locked stack, recorded rather than silent.** This manual
+> said React 18 and Router v6. `npm create vite` now scaffolds React 19, and the
+> current Router is v7; pinning back would have cost time and bought nothing.
+> The v6 APIs we use — `createBrowserRouter`, `Link`, `useParams`,
+> `useNavigate` — are unchanged in v7. Tailwind is v4, which is configured in
+> CSS via `@theme` rather than in a `tailwind.config.js`; there is no config
+> file to look for. The linter is oxlint, not eslint, and `npm run lint` runs it.
 
 **No Next.js. No Express.** Supabase is the backend; `src/services/` is the
 contract in front of it. An Express layer would mostly proxy Supabase, cost a

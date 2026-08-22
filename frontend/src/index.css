@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dayflow tokens. The single source is docs/DESIGN.md — if you change a value
+   here, change it there in the same commit, and vice versa.
+
+   Variable names below match DESIGN.md §3 exactly, so the doc and the app
+   cannot drift apart in naming. The @theme block re-exports them as Tailwind
+   utilities: --border becomes border-border, --text becomes text-text, and so
+   on. Use the utilities in components; never a raw hex.
+
+   Light is the default. Dark is applied by setting data-theme="dark" on <html>.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --bg: #f9f9f7;
+  --surface: #f9f9f7;
+  --surface-raised: #ffffff;
+  --border: #000000;
+  --border-soft: #d2ddd2;
+  --text: #000000;
+  --text-muted: #55554f;
+  --accent: #edfe5e;
+  --accent-alt: #bed4fb;
+  --accent-ink: #000000;
+  --neutral-fill: #edf0e9;
+  --success: #31e992;
+  --warning: #edfe5e;
+  --info: #bed4fb;
+  --danger: #ff5c4d;
+  --danger-ink: #c62f1f;
+
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-heading: "Instrument Serif", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* The one shadow in the system. Buttons only — cards are their border. */
+  --shadow-button: 0 2px 6px rgb(0 0 0 / 0.2);
+}
+
+:root[data-theme="dark"] {
+  --bg: #131311;
+  --surface: #131311;
+  --surface-raised: #1d1d1a;
+  --border: #f2f2ee;
+  --border-soft: #3a3a35;
+  --text: #f2f2ee;
+  --text-muted: #a3a39b;
+  --neutral-fill: #26261f;
+  --danger-ink: #ff8577;
+
+  /* Accents and status fills are deliberately unchanged: they are light,
+     high-chroma colours carrying black text, so they work on either canvas.
+     See DESIGN.md §2.1. */
+
+  /* A shadow tuned for cream paper is invisible on near-black. Use the border
+     instead. See DESIGN.md §3. */
+  --shadow-button: none;
+}
+
+/* `inline` matters: the values are var() references, so without it Tailwind
+   would snapshot the light values and the dark theme would never apply. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-alt: var(--accent-alt);
+  --color-accent-ink: var(--accent-ink);
+  --color-neutral-fill: var(--neutral-fill);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+
+  --font-display: var(--font-display);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+
+  --radius-card: 12px;
+  --radius-control: 6px;
+
+  --shadow-button: var(--shadow-button);
+}
+
+/* Type scale — DESIGN.md §3. Utilities, not component styles, so a page never
+   invents a size. If a size is missing here the scale is wrong; fix the doc. */
+@layer components {
+  .t-display {
+    font-family: var(--font-display);
+    font-size: 64px;
+    line-height: 0.82;
+    letter-spacing: -0.001em;
+    font-weight: 400;
+  }
+  .t-h1 {
+    font-family: var(--font-heading);
+    font-size: 48px;
+    line-height: 1.04;
+    letter-spacing: 0.002em;
+    font-weight: 400;
+  }
+  .t-h2 {
+    font-family: var(--font-heading);
+    font-size: 28px;
+    line-height: 1.07;
+    font-weight: 400;
+  }
+  .t-h3 {
+    font-size: 20px;
+    line-height: 1.15;
+    letter-spacing: 0.025em;
+    font-weight: 700;
+  }
+  .t-body {
+    font-size: 15px;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+  }
+  .t-body-lg {
+    font-size: 18px;
+    line-height: 1.5;
+    letter-spacing: 0.05em;
+  }
+  .t-label {
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.067em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .t-caption {
+    font-size: 13px;
+    line-height: 1.4;
+    letter-spacing: 0.04em;
+  }
+  /* Money, login IDs, clock times, work hours, day counts. Zero tracking and
+     tabular figures so columns line up. DESIGN.md §2.2 — not optional. */
+  .t-data {
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The ink system: one hairline defines every structural edge. */
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Focus is visible in both themes. The system thickens the border rather
+     than adding a coloured ring, but a ring is the correct default for
+     anything without a border of its own. */
+  :focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

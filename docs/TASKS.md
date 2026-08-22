@@ -18,9 +18,9 @@ beat thirteen hollow ones — but only if the six include something beyond CRUD.
 |---|---|---|---|
 | 1.1 | Read the PDF and the wireframes in `materials/`. Whole team | all | ☐ |
 | 1.2 | Docs commit: this file, `SCHEMA.md`, `SERVICES.md`, `AUTH.md`, `DESIGN.md`, `HACKATHON_PLAN.md`, `BUILD_RULES.md`, `README.md` | Armaan | ☑ |
-| 1.3 | Vite + React + TS + Tailwind + Router scaffold in `frontend/` | Armaan | ☐ |
-| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ☐ |
-| 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☐ |
+| 1.3 | Vite + React + TS + Tailwind + Router scaffold in `frontend/` | Armaan | ☑ |
+| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ☑ |
+| 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☑ |
 | 1.6 | Vercel project linked; production tracks `main`; branch previews on | Armaan | ☐ |
 | 1.7 | Supabase project created, keys shared with the team | Praneet | ☐ |
 | 1.8 | Each builder copies `docs/BUILD_RULES.md` into a local, gitignored `CLAUDE.md` | all | ☐ |
@@ -33,9 +33,9 @@ is the sign-up → landing path working end to end.
 | # | Task | Owner | Done |
 |---|---|---|---|
 | 2.1 | `DESIGN.md` tokens — filled from the switch-lit reference | Armaan | ☑ |
-| 2.2 | Tokens live in `styles.css`; light **and** dark defined for every one | Armaan | ☐ |
-| 2.3 | Theme toggle in the header; persists; defaults to system preference | Armaan | ☐ |
-| 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☐ |
+| 2.2 | Tokens live in `src/index.css`; light **and** dark defined for every one | Armaan | ☑ |
+| 2.3 | Theme toggle — mechanism done in `lib/theme.ts`, persists, defaults to system, no flash on load. **Still to move into the real header** when 2.6 builds it | Armaan | ◐ |
+| 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☑ |
 | 2.5 | UI primitives: Button, Input, Select, Card, Badge, Avatar, Table, Modal, Tabs, Toast, EmptyState, Spinner | Armaan | ☐ |
 | 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
 | 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
@@ -54,6 +54,7 @@ is the sign-up → landing path working end to end.
 | 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ☐ |
 | 2.18 | Decide employee-creation mechanism: Edge Function or claim. `AUTH.md` §5 | Praneet + Armaan | ☐ |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
+| 2.20 | Delete `pages/Scaffold.tsx` once every route has a real page | Armaan | ☐ |
 
 **Exit criteria.** Landing and sign-in look right in a real browser in both
 themes; tokens are in `DESIGN.md` *and* live in the app; schema, RLS, types and

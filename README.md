@@ -36,7 +36,7 @@ serial for that year — along with a first password the employee must change.
 
 ## Stack
 
-React 18 · TypeScript · Vite · Tailwind · React Router v6 · Supabase · Vercel
+React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel
 
 No Next.js, no Express. Supabase is the backend and `frontend/src/services/` is
 the contract in front of it.
@@ -50,6 +50,8 @@ frontend/src/
   pages/              one folder per screen
   services/           the only place Supabase is imported
   lib/salary.ts       the salary engine — a pure function, no I/O
+  lib/theme.ts        light/dark, persisted
+  router.tsx          integrator's file — every route has a slot
   context/            AuthProvider
   types/database.ts   generated from the schema, never hand-edited
 backend/supabase/
@@ -82,7 +84,7 @@ implementation, two callers, no drift.
 ```bash
 cd frontend
 npm install
-cp ../.env.example .env.local   # fill in the Supabase keys
+cp .env.example .env.local   # fill in the Supabase keys
 npm run dev
 ```
 
