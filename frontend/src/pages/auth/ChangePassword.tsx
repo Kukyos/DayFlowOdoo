@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter'
 import { Button, Card, Field, Input } from '@/components/ui'
 import { useSession } from '@/context/session'
 import { changePassword, passwordProblem, signOut } from '@/services/auth'
@@ -71,6 +72,7 @@ export function ChangePassword() {
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
+            <PasswordStrengthMeter password={password} />
           </Field>
           <Field label="Confirm new password" htmlFor="confirm-password">
             <Input

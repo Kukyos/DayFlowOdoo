@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter'
 import { Button, Field, Input } from '@/components/ui'
 import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
 
@@ -212,6 +213,7 @@ export function SignUp() {
               onChange={set('password')}
               onBlur={blur('password')}
             />
+            <PasswordStrengthMeter password={form.password} />
           </Field>
 
           <Field label="Confirm password" htmlFor="confirm" error={confirmError}>
