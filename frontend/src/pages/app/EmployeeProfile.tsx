@@ -13,6 +13,7 @@ import {
   Textarea,
   cx,
 } from '@/components/ui'
+import { ResumeUpload } from '@/components/profile/ResumeUpload'
 import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
@@ -284,21 +285,27 @@ function Resume({
 
   if (!editable) {
     return (
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="flex flex-col gap-8">
+        <div className="grid gap-8 lg:grid-cols-2">
+          <Card>
+            <h2 className="t-h3 mb-3">About</h2>
+            <p className="t-body text-text-muted">{employee.about || 'Nothing here yet.'}</p>
+          </Card>
+          <Card>
+            <h2 className="t-h3 mb-4">Skills</h2>
+            <SkillList skills={employee.skills} />
+          </Card>
+        </div>
         <Card>
-          <h2 className="t-h3 mb-3">About</h2>
-          <p className="t-body text-text-muted">{employee.about || 'Nothing here yet.'}</p>
-        </Card>
-        <Card>
-          <h2 className="t-h3 mb-4">Skills</h2>
-          <SkillList skills={employee.skills} />
+          <ResumeUpload employeeId={employee.id} editable={false} />
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
+    <div className="flex flex-col gap-8">
+      <div className="grid gap-8 lg:grid-cols-2">
       <Card>
         <h2 className="t-h3 mb-4">About</h2>
         <Field label="A short introduction" htmlFor="about">
@@ -326,6 +333,10 @@ function Resume({
         <div className="mt-5">
           <SkillList skills={skills.split(',').map((s) => s.trim()).filter(Boolean)} />
         </div>
+      </Card>
+      </div>
+      <Card>
+        <ResumeUpload employeeId={employee.id} editable={editable} />
       </Card>
     </div>
   )
