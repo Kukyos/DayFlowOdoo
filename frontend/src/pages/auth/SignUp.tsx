@@ -26,6 +26,7 @@ export function SignUp() {
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmationRequired, setConfirmationRequired] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -59,17 +60,18 @@ export function SignUp() {
 
     setBusy(true)
     try {
-      await signUpCompany({
+      const result = await signUpCompany({
         companyName: form.companyName,
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
         password: form.password,
       })
-      // Sign-up returns no session — the account exists but cannot authenticate
-      // until the confirmation link is followed. Navigating to the dashboard
-      // here would drop somebody onto a screen every query fails on.
-      setSentTo(form.email)
+      if (result.confirmationRequired) {
+        setConfirmationRequired(true)
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the account.')
     } finally {
@@ -126,7 +128,18 @@ export function SignUp() {
           </p>
         }
       >
-        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+        {confirmationRequired ? (
+          <div className="flex flex-col gap-4">
+            <p className="t-body text-text-muted">
+              Check your inbox to confirm your email address. Once confirmed,
+              return here and log in to continue.
+            </p>
+            <Button type="button" variant="strong" className="w-full" onClick={() => navigate('/signin')}>
+              Go to log in
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           {error && (
             <p
               role="alert"
@@ -215,7 +228,8 @@ export function SignUp() {
           <Button type="submit" variant="strong" disabled={busy} className="mt-2 w-full">
             {busy ? 'Creating your company…' : 'Create company account'}
           </Button>
-        </form>
+          </form>
+        )}
 
         <p className="t-caption mt-5 border-t border-border-soft pt-4 text-text-muted">
           This creates the company and makes you its first admin. You add your
