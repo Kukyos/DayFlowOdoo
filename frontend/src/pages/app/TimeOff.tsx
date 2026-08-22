@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Avatar,
   Button,
@@ -17,23 +18,29 @@ import {
   Textarea,
   Th,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { addDays, formatDate, today, workingDaysBetween } from '@/lib/dates'
 import {
   allRequests,
   cancelRequest,
   createRequest,
+  deleteAttachment,
   myBalances,
   myRequests,
   reviewRequest,
+  signedAttachmentUrl,
+  uploadAttachment,
 } from '@/services/timeOff'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
 import type { LeaveStatus, LeaveType } from '@/types/models'
 
 export function TimeOff() {
   const { isPrivileged } = useSession()
-  const [mode, setMode] = useState<'mine' | 'approvals'>(isPrivileged ? 'approvals' : 'mine')
+  const location = useLocation()
+  const [mode, setMode] = useState<'mine' | 'approvals'>(
+    isPrivileged && location.pathname.endsWith('/approvals') ? 'approvals' : 'mine',
+  )
 
   return (
     <>
@@ -71,7 +78,7 @@ export function TimeOff() {
 }
 
 function MyTimeOff() {
-  const { employee, refresh } = useSession()
+  const { employee, refreshEmployee } = useSession()
   const [open, setOpen] = useState(false)
 
   const { status, data, error, reload } = useAsync(async () => {
@@ -146,6 +153,7 @@ function MyTimeOff() {
                     <span className="text-text-muted">
                       {r.review_comment ?? r.remarks ?? '—'}
                     </span>
+                    {r.attachment_url && <AttachmentLink path={r.attachment_url} />}
                   </Td>
                   <Td right>
                     {r.status === 'pending' && (
@@ -166,7 +174,7 @@ function MyTimeOff() {
         onClose={() => setOpen(false)}
         onCreated={() => {
           reload()
-          refresh()
+        void refreshEmployee()
         }}
       />
     </>
@@ -195,6 +203,7 @@ function RequestModal({
   const [start, setStart] = useState(addDays(today(), 1))
   const [end, setEnd] = useState(addDays(today(), 1))
   const [remarks, setRemarks] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -207,19 +216,25 @@ function RequestModal({
     if (!employee) return
     setBusy(true)
     setError(null)
+    let attachmentUrl: string | null = null
     try {
+      attachmentUrl = type === 'sick' && attachment
+        ? await uploadAttachment(attachment)
+        : null
       await createRequest({
         employeeId: employee.id,
         leave_type: type,
         start_date: start,
         end_date: end,
         remarks,
-        attachment_url: type === 'sick' ? 'certificate.pdf' : null,
+        attachment_url: attachmentUrl,
       })
       onCreated()
       onClose()
       setRemarks('')
+      setAttachment(null)
     } catch (err) {
+      if (attachmentUrl) void deleteAttachment(attachmentUrl).catch(() => undefined)
       setError(err instanceof Error ? err.message : 'Could not submit that request.')
     } finally {
       setBusy(false)
@@ -272,10 +287,18 @@ function RequestModal({
         </p>
 
         {type === 'sick' && (
-          <p className="t-caption rounded-control border border-border-soft px-3 py-2 text-text-muted">
-            Sick leave needs a certificate. Upload lands with Storage in Stage 4;
-            the request carries the attachment field already.
-          </p>
+          <Field
+            label="Medical certificate"
+            htmlFor="certificate"
+            hint="Optional. PDF, JPG, or PNG up to 10 MB."
+          >
+            <Input
+              id="certificate"
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              onChange={(event) => setAttachment(event.target.files?.[0] ?? null)}
+            />
+          </Field>
         )}
 
         <Field label="Remarks" htmlFor="remarks">
@@ -301,7 +324,7 @@ function RequestModal({
 }
 
 function Approvals() {
-  const { employee, refresh } = useSession()
+  const { refreshEmployee } = useSession()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending')
   const q = useDebounced(search)
@@ -314,13 +337,16 @@ function Approvals() {
   )
 
   async function review(id: string, decision: 'approved' | 'rejected') {
-    if (!employee) return
+    const comment = window.prompt(
+      decision === 'approved' ? 'Approval comment (optional)' : 'Rejection comment (optional)',
+    )
+    if (comment === null) return
     setActing(id)
     setError(null)
     try {
-      await reviewRequest(id, decision, employee.id)
+      await reviewRequest(id, decision, comment)
       reload()
-      refresh()
+      void refreshEmployee()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that decision.')
     } finally {
@@ -403,7 +429,7 @@ function Approvals() {
                 <Td>
                   {LEAVE_TYPE_LABEL[r.leave_type]}
                   {r.attachment_url && (
-                    <span className="t-label ml-2 text-text-muted">📎</span>
+                    <AttachmentLink path={r.attachment_url} compact />
                   )}
                 </Td>
                 <Td data>{formatDate(r.start_date)}</Td>
@@ -443,5 +469,32 @@ function Approvals() {
           </Table>
         ))}
     </>
+  )
+}
+
+function AttachmentLink({ path, compact = false }: { path: string; compact?: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function open() {
+    setBusy(true)
+    setError(null)
+    try {
+      const url = await signedAttachmentUrl(path)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open the certificate.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className={compact ? 'ml-2 inline-block' : 'mt-1 block'}>
+      <button type="button" className="t-label text-text-muted underline" onClick={open} disabled={busy}>
+        {busy ? 'Opening…' : compact ? 'Certificate' : 'View certificate'}
+      </button>
+      {error && <span role="alert" className="ml-2 t-label text-danger-ink">{error}</span>}
+    </span>
   )
 }

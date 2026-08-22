@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
-import * as fx from '@/fixtures'
+import { useSession } from '@/context/session'
+import { useAsync } from '@/hooks/useAsync'
 import { today } from '@/lib/dates'
 import { formatRupees, MINIMUM_WAGE, computeSalary } from '@/lib/salary'
-import { createEmployee, departments } from '@/services/employees'
+import { createEmployee, listEmployees } from '@/services/employees'
 import { fullName } from '@/types/models'
 import type { Role } from '@/types/models'
 
@@ -13,18 +13,19 @@ import type { Role } from '@/types/models'
  * Admin/HR create an employee. This is the only way a person enters the
  * system — nobody self-registers (docs/AUTH.md §1).
  *
- * The system issues the login ID; it is never typed. The generated password is
- * shown **once**, at creation, and never again: it is not stored in plaintext,
- * not emailed from here, and not rendered on the profile afterwards.
+ * The employee signs in with their work email. The generated password is shown
+ * **once**, at creation, and never again: it is not stored in plaintext, not
+ * emailed from here, and not rendered on the profile afterwards.
  */
 export function AddEmployee() {
   const { isPrivileged } = useSession()
   const navigate = useNavigate()
-  const [created, setCreated] = useState<{ name: string; loginId: string; password: string } | null>(
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(
     null,
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const directory = useAsync(() => listEmployees(), [])
 
   const [form, setForm] = useState({
     first_name: '',
@@ -59,6 +60,14 @@ export function AddEmployee() {
   }
 
   const wageValid = computeSalary(form.monthly_wage).isValid
+  const departmentOptions = Array.from(new Set([
+    'Engineering',
+    'Design',
+    'HR',
+    'Sales',
+    'Support',
+    ...((directory.data ?? []).map((employee) => employee.department).filter(Boolean) as string[]),
+  ])).sort()
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -73,16 +82,16 @@ export function AddEmployee() {
     }
     setBusy(true)
     try {
-      const { employee, loginId } = await createEmployee({
+      const { employee, temporaryPassword } = await createEmployee({
         ...form,
         manager_id: form.manager_id || null,
       })
       setCreated({
         name: fullName(employee),
-        loginId,
+        email: employee.work_email,
         // Generated server-side in the real flow and returned once. Never
         // stored in plaintext, never shown again after this screen.
-        password: `Df-${Math.random().toString(36).slice(2, 10)}`,
+        password: temporaryPassword,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create that employee.')
@@ -96,15 +105,16 @@ export function AddEmployee() {
       <>
         <PageHeader title="Employee created" subtitle={`${created.name} can now sign in.`} />
         <Card className="max-w-xl">
-          <p className="t-label text-text-muted">Login ID</p>
-          <p className="t-data mt-1 text-2xl">{created.loginId}</p>
+          <p className="t-label text-text-muted">Sign-in email</p>
+          <p className="mt-1 text-lg font-semibold">{created.email}</p>
 
           <p className="t-label mt-6 text-text-muted">Temporary password</p>
           <p className="t-data mt-1 text-2xl">{created.password}</p>
 
           <p className="t-caption mt-6 rounded-control border border-danger-ink px-3 py-2 text-danger-ink">
-            Copy this now — it is shown once and cannot be retrieved. {created.name} must
-            change it at first sign-in.
+            Copy the temporary password now — it is shown once and cannot be retrieved. Share
+            the email and password with {created.name}, who must change the password at first
+            sign-in.
           </p>
 
           <div className="mt-6 flex gap-2">
@@ -128,7 +138,7 @@ export function AddEmployee() {
     <>
       <PageHeader
         title="Add employee"
-        subtitle="The login ID and first password are generated for you."
+        subtitle="The employee will sign in with their work email and a generated temporary password."
         actions={
           <Link to="/employees">
             <Button size="sm">Cancel</Button>
@@ -182,7 +192,7 @@ export function AddEmployee() {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Department" htmlFor="department">
               <Select id="department" value={form.department} onChange={set('department')}>
-                {departments().map((d) => (
+                {departmentOptions.map((d) => (
                   <option key={d}>{d}</option>
                 ))}
               </Select>
@@ -194,7 +204,7 @@ export function AddEmployee() {
           <Field label="Manager" htmlFor="manager_id" className="mt-4">
             <Select id="manager_id" value={form.manager_id} onChange={set('manager_id')}>
               <option value="">No manager</option>
-              {fx.employees.map((e) => (
+              {(directory.data ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
                   {fullName(e)}
                 </option>

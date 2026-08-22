@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Avatar,
   Button,
@@ -8,20 +8,25 @@ import {
   Field,
   Input,
   PageHeader,
-  PresenceChip,
   Spinner,
   Tabs,
   Textarea,
   cx,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { ResumeUpload } from '@/components/profile/ResumeUpload'
+import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
-import { getEmployee, updateEmployee } from '@/services/employees'
-import * as fx from '@/fixtures'
-import { fullName } from '@/types/models'
-import type { Employee } from '@/types/models'
+import {
+  deactivateEmployee,
+  deleteAvatar,
+  getEmployee,
+  updateEmployee,
+  uploadAvatar,
+} from '@/services/employees'
+import { fullName, isFullEmployee } from '@/types/models'
+import type { DirectoryEmployee, Employee } from '@/types/models'
 
 /**
  * One page for three cases: my own profile, a coworker's profile, and an
@@ -34,13 +39,15 @@ import type { Employee } from '@/types/models'
  */
 export function EmployeeProfile({ self = false }: { self?: boolean }) {
   const { id } = useParams()
-  const { employee: me, isPrivileged, refresh } = useSession()
+  const navigate = useNavigate()
+  const { employee: me, isPrivileged, refreshEmployee } = useSession()
   const targetId = self ? me?.id : id
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { status, data, error, reload } = useAsync(
     async () => {
       if (!targetId || !me) throw new Error('Not signed in.')
-      return getEmployee(targetId, { id: me.id, role: me.role })
+      return getEmployee(targetId)
     },
     [targetId, me?.id, me?.role],
   )
@@ -50,12 +57,24 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 
   return (
     <ProfileBody
-      employee={data}
-      isSelf={data.id === me?.id}
+      employee={data.employee}
+      presence={data.presence}
+      isSelf={data.employee.id === me?.id}
       isPrivileged={isPrivileged}
+      actionError={actionError}
+      onDeactivate={async () => {
+        if (!window.confirm(`Deactivate ${fullName(data.employee)}? They will lose access immediately.`)) return
+        setActionError(null)
+        try {
+          await deactivateEmployee(data.employee.id)
+          navigate('/employees', { replace: true })
+        } catch (cause) {
+          setActionError(cause instanceof Error ? cause.message : 'Could not deactivate that employee.')
+        }
+      }}
       onSaved={() => {
         reload()
-        refresh()
+        void refreshEmployee()
       }}
     />
   )
@@ -63,13 +82,19 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 
 function ProfileBody({
   employee,
+  presence,
   isSelf,
   isPrivileged,
+  actionError,
+  onDeactivate,
   onSaved,
 }: {
-  employee: Employee
+  employee: Employee | DirectoryEmployee
+  presence: 'present' | 'leave' | 'absent'
   isSelf: boolean
   isPrivileged: boolean
+  actionError: string | null
+  onDeactivate: () => Promise<void>
   onSaved: () => void
 }) {
   // A tab exists only when the caller may see what is on it. The Salary Info
@@ -80,17 +105,16 @@ function ProfileBody({
       { id: 'work', label: 'Work Info' },
       { id: 'resume', label: 'Resume' },
     ]
-    if (isSelf || isPrivileged) list.push({ id: 'private', label: 'Private Info' })
+    if (isFullEmployee(employee)) list.push({ id: 'private', label: 'Private Info' })
     // Own salary is readable; only Admin/HR can change it (TASKS 3.4). A
     // coworker gets no tab at all, because the service returns their wage as
     // null — the tab would be empty, which reads as broken rather than denied.
-    if (isSelf || isPrivileged) list.push({ id: 'salary', label: 'Salary Info' })
+    if (isFullEmployee(employee)) list.push({ id: 'salary', label: 'Salary Info' })
     return list
-  }, [isSelf, isPrivileged])
+  }, [employee])
 
   const [tab, setTab] = useState('work')
   const active = tabs.some((t) => t.id === tab) ? tab : 'work'
-  const presence = fx.presenceById[employee.id] ?? 'absent'
 
   return (
     <>
@@ -102,28 +126,39 @@ function ProfileBody({
         }
         actions={
           !isSelf && (
-            <Link to="/employees">
-              <Button size="sm">Back to directory</Button>
-            </Link>
+            <div className="flex gap-2">
+              {isPrivileged && isFullEmployee(employee) && employee.is_active && (
+                <Button size="sm" variant="danger" onClick={() => { void onDeactivate() }}>
+                  Deactivate
+                </Button>
+              )}
+              <Link to="/employees">
+                <Button size="sm">Back to directory</Button>
+              </Link>
+            </div>
           )
         }
       />
 
+      {actionError && <p role="alert" className="mb-4 t-caption text-danger-ink">{actionError}</p>}
+
       <Card className="mb-8">
         <div className="flex flex-wrap items-center gap-5">
-          <Avatar name={fullName(employee)} src={employee.avatar_url} size={76} />
+          <div className="flex flex-col items-center gap-2">
+            <Avatar name={fullName(employee)} src={employee.avatar_url} size={76} />
+            {isSelf && isFullEmployee(employee) && (
+              <AvatarUpload employee={employee} onSaved={onSaved} />
+            )}
+          </div>
           <div className="min-w-0">
             <p className="t-h2">{fullName(employee)}</p>
             <p className="t-caption mt-1 text-text-muted">
               {employee.job_position} · {employee.location}
             </p>
-            {employee.login_id && (
-              <p className="t-data mt-2 text-text-muted">{employee.login_id}</p>
-            )}
           </div>
           <div className="ml-auto flex flex-col items-end gap-2">
-            <PresenceChip presence={presence} />
-            {employee.date_of_joining && (
+            <span className="t-label text-text-muted">{presence === 'present' ? 'In today' : presence === 'leave' ? 'On leave' : 'Not in today'}</span>
+            {isFullEmployee(employee) && employee.date_of_joining && (
               <span className="t-caption text-text-muted">
                 Joined {formatDate(employee.date_of_joining)}
               </span>
@@ -139,14 +174,53 @@ function ProfileBody({
         {active === 'resume' && (
           <Resume employee={employee} editable={isSelf} onSaved={onSaved} />
         )}
-        {active === 'private' && (
+        {active === 'private' && isFullEmployee(employee) && (
           <PrivateInfo employee={employee} editable={isSelf || isPrivileged} onSaved={onSaved} />
         )}
-        {active === 'salary' && (
+        {active === 'salary' && isFullEmployee(employee) && (
           <SalaryInfo employee={employee} editable={isPrivileged} onSaved={onSaved} />
         )}
       </div>
     </>
+  )
+}
+
+function AvatarUpload({ employee, onSaved }: { employee: Employee; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function select(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    let avatarUrl: string | null = null
+    try {
+      avatarUrl = await uploadAvatar(file)
+      await updateEmployee(employee.id, { avatar_url: avatarUrl })
+      if (employee.avatar_url) void deleteAvatar(employee.avatar_url).catch(() => undefined)
+      onSaved()
+    } catch (cause) {
+      if (avatarUrl) void deleteAvatar(avatarUrl).catch(() => undefined)
+      setError(cause instanceof Error ? cause.message : 'Could not update your avatar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="text-center">
+      <label className="cursor-pointer t-label text-text-muted hover:text-text">
+        {busy ? 'Uploading…' : 'Change photo'}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          disabled={busy}
+          onChange={(event) => { void select(event.target.files?.[0]) }}
+        />
+      </label>
+      {error && <p role="alert" className="mt-1 max-w-40 t-label text-danger-ink">{error}</p>}
+    </div>
   )
 }
 
@@ -159,9 +233,7 @@ const Row = ({ label, value }: { label: string; value: string | null | undefined
   </div>
 )
 
-function WorkInfo({ employee }: { employee: Employee }) {
-  const manager = employee.manager_id ? fx.byId(employee.manager_id) : null
-  const reports = fx.employees.filter((e) => e.manager_id === employee.id)
+function WorkInfo({ employee }: { employee: Employee | DirectoryEmployee }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -171,34 +243,8 @@ function WorkInfo({ employee }: { employee: Employee }) {
         <Row label="Department" value={employee.department} />
         <Row label="Location" value={employee.location} />
         <Row label="Work email" value={employee.work_email} />
-        {/* Mobile is nulled for a coworker, so it renders as an em dash. */}
-        <Row label="Mobile" value={employee.mobile} />
-        <Row
-          label="Manager"
-          value={manager ? fullName(manager) : 'No manager on record'}
-        />
-      </Card>
-
-      <Card>
-        <h2 className="t-h3 mb-3">Reports</h2>
-        {reports.length === 0 ? (
-          <p className="t-caption py-3 text-text-muted">Nobody reports to {employee.first_name}.</p>
-        ) : (
-          <ul className="flex flex-col">
-            {reports.map((r) => (
-              <li key={r.id}>
-                <Link
-                  to={`/employees/${r.id}`}
-                  className="flex items-center gap-3 border-b border-border-soft py-3 hover:bg-neutral-fill"
-                >
-                  <Avatar name={fullName(r)} size={34} />
-                  <span className="t-caption">{fullName(r)}</span>
-                  <span className="t-label ml-auto text-text-muted">{r.job_position}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {isFullEmployee(employee) && <Row label="Mobile" value={employee.mobile} />}
+        <Row label="Manager" value={employee.manager_id ? 'Assigned' : 'No manager on record'} />
       </Card>
     </div>
   )
@@ -209,7 +255,7 @@ function Resume({
   editable,
   onSaved,
 }: {
-  employee: Employee
+  employee: Employee | DirectoryEmployee
   editable: boolean
   onSaved: () => void
 }) {
@@ -217,10 +263,12 @@ function Resume({
   const [skills, setSkills] = useState((employee.skills ?? []).join(', '))
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true)
     setSaved(false)
+    setError(null)
     try {
       await updateEmployee(employee.id, {
         about,
@@ -228,6 +276,8 @@ function Resume({
       })
       setSaved(true)
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your resume.')
     } finally {
       setBusy(false)
     }
@@ -235,21 +285,27 @@ function Resume({
 
   if (!editable) {
     return (
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="flex flex-col gap-8">
+        <div className="grid gap-8 lg:grid-cols-2">
+          <Card>
+            <h2 className="t-h3 mb-3">About</h2>
+            <p className="t-body text-text-muted">{employee.about || 'Nothing here yet.'}</p>
+          </Card>
+          <Card>
+            <h2 className="t-h3 mb-4">Skills</h2>
+            <SkillList skills={employee.skills} />
+          </Card>
+        </div>
         <Card>
-          <h2 className="t-h3 mb-3">About</h2>
-          <p className="t-body text-text-muted">{employee.about || 'Nothing here yet.'}</p>
-        </Card>
-        <Card>
-          <h2 className="t-h3 mb-4">Skills</h2>
-          <SkillList skills={employee.skills} />
+          <ResumeUpload employeeId={employee.id} editable={false} />
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
+    <div className="flex flex-col gap-8">
+      <div className="grid gap-8 lg:grid-cols-2">
       <Card>
         <h2 className="t-h3 mb-4">About</h2>
         <Field label="A short introduction" htmlFor="about">
@@ -269,6 +325,7 @@ function Resume({
           </Button>
           {saved && <span className="t-caption text-text-muted">Saved.</span>}
         </div>
+        {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
       </Card>
       <Card>
         <h2 className="t-h3 mb-4">Preview</h2>
@@ -276,6 +333,10 @@ function Resume({
         <div className="mt-5">
           <SkillList skills={skills.split(',').map((s) => s.trim()).filter(Boolean)} />
         </div>
+      </Card>
+      </div>
+      <Card>
+        <ResumeUpload employeeId={employee.id} editable={editable} />
       </Card>
     </div>
   )
@@ -309,12 +370,16 @@ function PrivateInfo({
   const [address, setAddress] = useState(employee.address ?? '')
   const [mobile, setMobile] = useState(employee.mobile ?? '')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true)
+    setError(null)
     try {
       await updateEmployee(employee.id, { address, mobile })
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save private information.')
     } finally {
       setBusy(false)
     }
@@ -345,6 +410,7 @@ function PrivateInfo({
             <Button variant="strong" className="mt-4" onClick={save} disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </Button>
+            {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
           </>
         ) : (
           <>
@@ -388,15 +454,19 @@ function SalaryInfo({
   const [wage, setWage] = useState(employee.monthly_wage ?? 0)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const breakdown = useMemo(() => computeSalary(wage), [wage])
 
   async function save() {
     setBusy(true)
     setSaved(false)
+    setError(null)
     try {
       await updateEmployee(employee.id, { monthly_wage: wage })
       setSaved(true)
       onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save the wage.')
     } finally {
       setBusy(false)
     }
@@ -440,6 +510,7 @@ function SalaryInfo({
                 </Button>
                 {saved && <span className="t-caption text-text-muted">Saved.</span>}
               </div>
+              {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
             </>
           ) : (
             <>

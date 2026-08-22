@@ -1,19 +1,59 @@
-/** STUB — fixture-backed. Signatures from docs/SERVICES.md. */
-import * as fx from '@/fixtures'
-import { buildLoginId, isPrivileged } from '@/types/models'
-import type { DirectoryEmployee, Employee, Role } from '@/types/models'
-import { clone, latency, ServiceError } from './client'
+import type { DirectoryEmployee, Employee, EmployeeProfile, Role } from '@/types/models'
+import { FunctionsHttpError } from '@supabase/supabase-js'
+import { ServiceError, supabaseClient, unwrap } from './client'
+
+type DirectoryRow = {
+  id: string | null
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  job_position: string | null
+  department: string | null
+  location: string | null
+  work_email: string | null
+  manager_id: string | null
+  about: string | null
+  skills: string[] | null
+  presence: string | null
+}
+
+function toDirectoryEmployee(row: DirectoryRow): DirectoryEmployee {
+  if (!row.id || !row.first_name || !row.last_name || !row.work_email) {
+    throw new ServiceError('The employee directory returned an incomplete profile.')
+  }
+  if (row.presence !== 'present' && row.presence !== 'leave' && row.presence !== 'absent') {
+    throw new ServiceError('The employee directory returned an unsupported presence status.')
+  }
+  return {
+    ...row,
+    id: row.id,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    work_email: row.work_email,
+    presence: row.presence,
+  }
+}
+
+function toEmployee(row: Omit<Employee, 'role'> & { role: string }): Employee {
+  if (row.role !== 'admin' && row.role !== 'hr' && row.role !== 'employee') {
+    throw new ServiceError('The employee record has an unsupported access role.')
+  }
+  return { ...row, role: row.role }
+}
 
 /**
- * The directory view. Only the columns `employee_directory` exposes —
+ * The directory RPC. Only the columns `list_employee_directory()` exposes —
  * no wage, no bank details, no leave balances. If a field is missing here it is
  * because RLS will not return it, not because it was forgotten.
  */
 export async function listEmployees(opts: { search?: string; department?: string } = {}) {
-  await latency()
+  const { data, error } = await supabaseClient()
+    .rpc('list_employee_directory')
+  const employees = unwrap({ data, error })
   const q = opts.search?.trim().toLowerCase() ?? ''
-  return fx.employees
-    .filter((e) => e.is_active)
+  return employees
+    .map(toDirectoryEmployee)
+    .sort((a, b) => a.first_name.localeCompare(b.first_name))
     .filter((e) => !opts.department || e.department === opts.department)
     .filter((e) =>
       !q ||
@@ -22,64 +62,58 @@ export async function listEmployees(opts: { search?: string; department?: string
       (e.department ?? '').toLowerCase().includes(q) ||
       (e.location ?? '').toLowerCase().includes(q),
     )
-    .map<DirectoryEmployee>((e) => ({
-      id: e.id,
-      first_name: e.first_name,
-      last_name: e.last_name,
-      avatar_url: e.avatar_url,
-      job_position: e.job_position,
-      department: e.department,
-      location: e.location,
-      work_email: e.work_email,
-      manager_id: e.manager_id,
-      about: e.about,
-      skills: e.skills,
-      presence: fx.presenceById[e.id] ?? 'absent',
-    }))
 }
 
 /**
- * Own row in full; a coworker's row with the protected columns nulled.
- *
- * The nulling is what RLS will do server-side. Doing it here too means the
- * profile page is built against the shape it will actually receive, instead of
- * discovering half the page is blank during Stage 4.
+ * RLS returns a full row for the caller or a privileged colleague. For a
+ * normal coworker the full-row query returns nothing, then the safe directory
+ * view supplies the deliberately smaller profile shape.
  */
-export async function getEmployee(
-  id: string,
-  viewer: { id: string; role: Role },
-): Promise<Employee> {
-  await latency()
-  const found = fx.employees.find((e) => e.id === id)
-  if (!found) throw new ServiceError('That employee no longer exists.')
+export async function getEmployee(id: string): Promise<EmployeeProfile> {
+  const client = supabaseClient()
+  const fullResult = await client.from('employees').select('*').eq('id', id).maybeSingle()
+  if (fullResult.error) throw new ServiceError(fullResult.error.message, fullResult.error)
 
-  const maySeeAll = viewer.id === id || isPrivileged(viewer.role)
-  if (maySeeAll) return clone(found)
-
-  return {
-    ...clone(found),
-    date_of_birth: null,
-    address: null,
-    bank_account_number: null,
-    ifsc_code: null,
-    pan_no: null,
-    uan_no: null,
-    monthly_wage: null,
-    paid_leave_balance: null,
-    sick_leave_balance: null,
-    mobile: null,
+  const directoryResult = await client.rpc('list_employee_directory')
+  if (directoryResult.error) {
+    throw new ServiceError('Could not load the employee directory.', directoryResult.error)
   }
+  const directoryRow = directoryResult.data.find((row) => row.id === id)
+  if (!directoryRow) {
+    throw new ServiceError('That employee no longer exists or is outside your company.')
+  }
+  const directory = toDirectoryEmployee(directoryRow)
+  const employee = fullResult.data ? toEmployee(fullResult.data) : directory
+  return { employee, presence: directory.presence }
 }
 
-export async function updateEmployee(id: string, patch: Partial<Employee>) {
-  await latency()
-  const found = fx.employees.find((e) => e.id === id)
-  if (!found) throw new ServiceError('That employee no longer exists.')
-  Object.assign(found, patch)
-  return clone(found)
+export type EmployeeUpdate = Partial<Pick<
+  Employee,
+  | 'about'
+  | 'skills'
+  | 'mobile'
+  | 'address'
+  | 'avatar_url'
+  | 'date_of_birth'
+  | 'bank_account_number'
+  | 'ifsc_code'
+  | 'pan_no'
+  | 'uan_no'
+  | 'monthly_wage'
+>>
+
+export async function updateEmployee(id: string, patch: EmployeeUpdate): Promise<Employee> {
+  const { data, error } = await supabaseClient()
+    .from('employees')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single()
+  const employee = unwrap({ data, error }, 'Could not save that employee profile.')
+  return toEmployee(employee)
 }
 
-export async function createEmployee(input: {
+export type CreateEmployeeInput = {
   first_name: string
   last_name: string
   work_email: string
@@ -90,45 +124,76 @@ export async function createEmployee(input: {
   monthly_wage: number
   manager_id: string | null
   role: Role
-}) {
-  await latency(520)
-  if (fx.employees.some((e) => e.work_email === input.work_email)) {
-    throw new ServiceError('Someone already has that work email.')
-  }
-  const year = Number(input.date_of_joining.slice(0, 4))
-  const serial = fx.employees.filter((e) => e.date_of_joining?.startsWith(`${year}`)).length + 1
-  const loginId = buildLoginId('OI', input.first_name, input.last_name, year, serial)
-
-  const employee: Employee = {
-    id: `e-${fx.employees.length + 1}`,
-    company_id: fx.company.id,
-    login_id: loginId,
-    avatar_url: null,
-    about: null,
-    skills: [],
-    mobile: null,
-    date_of_birth: null,
-    address: null,
-    bank_account_number: null,
-    ifsc_code: null,
-    pan_no: null,
-    uan_no: null,
-    paid_leave_balance: 24,
-    sick_leave_balance: 7,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    ...input,
-  }
-  fx.employees.push(employee)
-  fx.presenceById[employee.id] = 'absent'
-  return { employee: clone(employee), loginId }
 }
 
-export async function deactivateEmployee(id: string) {
-  await latency()
-  const found = fx.employees.find((e) => e.id === id)
-  if (found) found.is_active = false
+type CreateEmployeeResult = {
+  employee: Omit<Employee, 'role'> & { role: string }
+  temporaryPassword: string
 }
 
-export const departments = (): string[] =>
-  [...new Set(fx.employees.map((e) => e.department).filter(Boolean))] as string[]
+export async function createEmployee(input: CreateEmployeeInput) {
+  const { data, error } = await supabaseClient().functions.invoke<CreateEmployeeResult>(
+    'create-employee',
+    { body: input },
+  )
+  if (error) {
+    let message = 'Could not create that employee.'
+    if (error instanceof FunctionsHttpError) {
+      const detail = await error.context.json().catch(() => null) as { message?: string } | null
+      if (detail?.message) message = detail.message
+    }
+    throw new ServiceError(message, error)
+  }
+  if (!data?.employee || !data.temporaryPassword) {
+    throw new ServiceError('The employee-creation service returned an incomplete result.')
+  }
+  return {
+    employee: toEmployee(data.employee),
+    temporaryPassword: data.temporaryPassword,
+  }
+}
+
+export async function deactivateEmployee(id: string): Promise<void> {
+  const { error } = await supabaseClient().rpc('deactivate_employee', { p_employee_id: id })
+  if (error) throw new ServiceError(error.message, error)
+}
+
+const AVATAR_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+
+export async function uploadAvatar(file: File): Promise<string> {
+  const extension = AVATAR_TYPES[file.type]
+  if (!extension) throw new ServiceError('Use a JPG, PNG, or WebP avatar.')
+  if (file.size > 5 * 1024 * 1024) throw new ServiceError('The avatar must be 5 MB or smaller.')
+
+  const client = supabaseClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError || !userData.user) throw new ServiceError('Sign in before uploading an avatar.')
+  const { data: employee, error: employeeError } = await client
+    .from('employees')
+    .select('company_id')
+    .eq('id', userData.user.id)
+    .single()
+  if (employeeError || !employee) throw new ServiceError('Could not resolve your company.')
+
+  const path = `${employee.company_id}/${userData.user.id}/${crypto.randomUUID()}.${extension}`
+  const { error } = await client.storage.from('avatars').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new ServiceError('Could not upload that avatar.', error)
+  return client.storage.from('avatars').getPublicUrl(path).data.publicUrl
+}
+
+export async function deleteAvatar(publicUrl: string): Promise<void> {
+  const marker = '/storage/v1/object/public/avatars/'
+  const pathname = new URL(publicUrl).pathname
+  const markerIndex = pathname.indexOf(marker)
+  if (markerIndex < 0) return
+  const path = decodeURIComponent(pathname.slice(markerIndex + marker.length))
+  const { error } = await supabaseClient().storage.from('avatars').remove([path])
+  if (error) throw new ServiceError('Could not remove the previous avatar.', error)
+}

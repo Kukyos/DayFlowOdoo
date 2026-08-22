@@ -3,6 +3,7 @@
  * directly; they receive data or a safe, user-facing error from this module.
  */
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
+import type { Employee } from '@/types/models'
 import { ServiceError, supabaseClient } from './client'
 
 export type Session = SupabaseSession
@@ -73,6 +74,7 @@ export async function signUpCompany(input: SignUpCompanyInput): Promise<SignUpCo
         company_name: input.companyName.trim(),
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
+        mobile: input.mobile?.trim() || undefined,
       },
     },
   })
@@ -99,4 +101,40 @@ export async function getSession(): Promise<Session | null> {
 export function onAuthChange(callback: (event: AuthChangeEvent, session: Session | null) => void): () => void {
   const { data } = supabaseClient().auth.onAuthStateChange(callback)
   return () => data.subscription.unsubscribe()
+}
+
+export async function currentEmployee(): Promise<Employee> {
+  const { data: userData, error: userError } = await supabaseClient().auth.getUser()
+  if (userError || !userData.user) {
+    throw new ServiceError('Your signed-in account could not be verified.', userError)
+  }
+
+  const { data, error } = await supabaseClient()
+    .from('employees')
+    .select('*')
+    .eq('id', userData.user.id)
+    .single()
+
+  if (error || !data) {
+    throw new ServiceError(
+      'Your account is signed in, but its employee profile could not be loaded.',
+      error,
+    )
+  }
+
+  if (data.role !== 'admin' && data.role !== 'hr' && data.role !== 'employee') {
+    throw new ServiceError('Your employee profile has an unsupported access role.')
+  }
+
+  return { ...data, role: data.role }
+}
+
+export async function changePassword(newPassword: string): Promise<void> {
+  const problem = passwordProblem(newPassword)
+  if (problem) throw new ServiceError(problem)
+
+  const { error } = await supabaseClient().auth.updateUser({ password: newPassword })
+  if (error) {
+    throw new ServiceError('Could not change your password. Please try again.', error)
+  }
 }

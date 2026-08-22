@@ -1,11 +1,11 @@
 /**
- * Hand-written model types for the fixture phase.
+ * Application-facing model types.
  *
- * These mirror docs/SCHEMA.md exactly. They are **temporary**: once Praneet
- * runs `npx supabase gen types typescript`, `types/database.ts` becomes the
- * source and these get replaced by aliases onto its Row types. Keeping the
- * shapes identical now is what makes that a rename rather than a rewrite.
+ * Live table rows come from the generated `types/database.ts`. The remaining
+ * view/derived types stay hand-written until their migrations exist.
  */
+
+import type { Tables } from './database'
 
 export type Role = 'admin' | 'hr' | 'employee'
 export type Presence = 'present' | 'leave' | 'absent'
@@ -16,13 +16,8 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected'
 export const isPrivileged = (role: Role | undefined | null): boolean =>
   role === 'admin' || role === 'hr'
 
-export type Company = {
-  id: string
-  name: string
-  login_prefix: string | null
-  logo_url: string | null
-  created_at: string
-}
+export type Company = Tables<'companies'>
+export type Notification = Tables<'notifications'>
 
 /**
  * The caller's own row, or an employee row an admin may read in full.
@@ -31,44 +26,17 @@ export type Company = {
  * as null for a coworker. A page must handle null rather than assume a value —
  * see `DirectoryEmployee` for the shape a coworker actually gets.
  */
-export type Employee = {
-  id: string
-  company_id: string
-  login_id: string | null
+type EmployeeRow = Tables<'employees'>
+
+export type Employee = Omit<
+  EmployeeRow,
+  'role'
+> & {
   role: Role
-  first_name: string
-  last_name: string
-  work_email: string
-  mobile: string | null
-  job_position: string | null
-  department: string | null
-  location: string | null
-  manager_id: string | null
-  date_of_joining: string | null
-  avatar_url: string | null
-  about: string | null
-  skills: string[] | null
-
-  // Private Info — null unless the caller is the employee or is privileged.
-  date_of_birth: string | null
-  address: string | null
-  bank_account_number: string | null
-  ifsc_code: string | null
-  pan_no: string | null
-  uan_no: string | null
-
-  // Salary — null unless privileged. The employee does NOT see their own wage;
-  // docs/SCHEMA.md keeps the Salary Info tab admin-only.
-  monthly_wage: number | null
-
-  paid_leave_balance: number | null
-  sick_leave_balance: number | null
-  is_active: boolean
-  created_at: string
 }
 
 /**
- * What `employee_directory` exposes. Deliberately missing every private,
+ * What `list_employee_directory()` exposes. Deliberately missing every private,
  * salary and balance column — if a field is not on this type, a coworker
  * cannot see it, and the page cannot accidentally render it.
  */
@@ -86,6 +54,14 @@ export type DirectoryEmployee = {
   skills: string[] | null
   presence: Presence
 }
+
+export type EmployeeProfile = {
+  employee: Employee | DirectoryEmployee
+  presence: Presence
+}
+
+export const isFullEmployee = (employee: Employee | DirectoryEmployee): employee is Employee =>
+  'monthly_wage' in employee
 
 export type AttendanceRow = {
   id: string
@@ -148,20 +124,4 @@ export const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   half_day: 'Half day',
   absent: 'Absent',
   leave: 'Leave',
-}
-
-/**
- * docs/SCHEMA.md: prefix + first two letters of each name + joining year +
- * a four-digit serial. Display only — sign-in is email and password.
- */
-export function buildLoginId(
-  prefix: string,
-  firstName: string,
-  lastName: string,
-  joiningYear: number,
-  serial: number,
-): string {
-  const part = (s: string) =>
-    (s.replace(/[^a-zA-Z]/g, '').toUpperCase() + 'XX').slice(0, 2)
-  return `${prefix.toUpperCase()}${part(firstName)}${part(lastName)}${joiningYear}${`${serial}`.padStart(4, '0')}`
 }

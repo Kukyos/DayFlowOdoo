@@ -13,8 +13,20 @@ Supabase. If a function is not listed here, it does not exist yet.
 - Types come from generated `frontend/src/types/database.ts`, never hand-edited.
 - Dates cross the boundary as `YYYY-MM-DD`; money is a number of rupees rounded
   to two decimals.
-- During page work, service stubs use `frontend/src/fixtures/` but retain these
-  exact return shapes. Fixtures are removed once the real service is wired.
+- Demo data comes from `backend/supabase/seed.sql`; production services never
+  import local fixtures.
+
+**Live through Milestone 9:** company reads/updates, directory/profile,
+employee creation/deactivation, attendance, time off, avatars, company logos,
+company configuration, in-app notifications,
+private leave attachments, and the guarded dashboard summary now call Supabase.
+The unused frontend fixture layer has been removed.
+
+## `dashboard.ts`
+
+| function | returns | notes |
+|---|---|---|
+| `getDashboardSummary()` | `DashboardSummary` | One authenticated RPC; own attendance/balances/recent requests for everyone, company aggregates and pending requests only for Admin/HR |
 
 ## `auth.ts`
 
@@ -44,7 +56,7 @@ type SignUpCompanyResult = {
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |
 | `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
-| `changePassword(newPassword)` | `void` | |
+| `changePassword(newPassword)` | `void` | Updates the Auth password; the private Auth trigger clears `must_change_password` |
 | `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
 
 ## `company.ts`
@@ -59,9 +71,9 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Reads `employee_directory`; includes derived `presence` |
-| `getEmployee(id)` | `EmployeeProfile` | Own full profile or the directory-safe profile of a coworker; private/salary fields are null unless RLS permits them |
-| `createEmployee(input)` | `{ employee, loginId }` | Admin/HR only. Sends an invite through the server-side employee-creation flow |
+| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
+| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
+| `createEmployee(input)` | `{ employee, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the employee signs in with `employee.work_email`, and the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
 | `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
 | `uploadAvatar(file)` | `string` | `avatars` bucket |
@@ -70,11 +82,11 @@ type SignUpCompanyResult = {
 
 | function | returns | notes |
 |---|---|---|
-| `checkIn()` | `AttendanceRow` | Inserts today's row; errors if one already exists |
-| `checkOut()` | `AttendanceRow` | Updates the caller's open row for today |
-| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Drives the header control |
+| `checkIn()` | `AttendanceRow` | Calls the guarded server action for the caller; errors if one already exists |
+| `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
+| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
 | `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
-| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Admin/HR only |
+| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Calls the guarded Admin/HR-only company register RPC |
 | `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |
 
 ## `timeOff.ts`
@@ -83,12 +95,25 @@ type SignUpCompanyResult = {
 |---|---|---|
 | `myBalances()` | `{ paid: number; sick: number }` | Reads the caller's employee balances |
 | `myRequests()` | `LeaveRequest[]` | |
-| `createRequest(input)` | `LeaveRequest` | Calculates and sends `days`; type is `paid`, `sick`, or `unpaid` |
+| `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid` |
 | `cancelRequest(id)` | `void` | Own pending request only |
-| `uploadAttachment(file)` | `string` | `leave-documents` bucket; optional for MVP |
+| `uploadAttachment(file)` | `string` | Stores a private object path in `leave-documents`; optional for MVP |
+| `signedAttachmentUrl(path)` | `string` | Short-lived URL for an authorized employee or Admin/HR viewer |
 | `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
 | `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
-| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; `status` is `approved` or `rejected`; approval adjusts balance atomically |
+| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
+
+## `company.ts`
+
+`getCompany()` returns the caller's company settings. `updateCompany()` lets
+Admin/HR update name, logo, time-off labels, working days, and workday start/end;
+RLS rejects employee writes.
+
+## `notifications.ts`
+
+`listNotifications()`, `unreadNotificationCount()`, `markNotificationRead()`,
+and `markAllNotificationsRead()` operate only on the caller's notification rows.
+The browser cannot create notifications or edit their content.
 
 ## `salary.ts`
 

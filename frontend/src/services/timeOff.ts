@@ -1,22 +1,81 @@
-/** STUB — fixture-backed. Signatures from docs/SERVICES.md. */
-import * as fx from '@/fixtures'
 import { workingDaysBetween } from '@/lib/dates'
+import type { Tables } from '@/types/database'
 import type { LeaveBalances, LeaveRequest, LeaveStatus, LeaveType } from '@/types/models'
-import { clone, latency, ServiceError } from './client'
+import { ServiceError, supabaseClient, unwrap } from './client'
+
+type RequestEmployee = {
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+}
+
+type RequestRow = Tables<'leave_requests'> & {
+  employees: RequestEmployee | null
+}
+
+const isLeaveType = (value: string): value is LeaveType =>
+  value === 'paid' || value === 'sick' || value === 'unpaid'
+
+const isLeaveStatus = (value: string): value is LeaveStatus =>
+  value === 'pending' || value === 'approved' || value === 'rejected'
+
+function toLeaveRequest(row: RequestRow): LeaveRequest {
+  if (!isLeaveType(row.leave_type) || !isLeaveStatus(row.status)) {
+    throw new ServiceError('A leave request returned an unsupported type or status.')
+  }
+  return {
+    id: row.id,
+    employee_id: row.employee_id,
+    employee_name: row.employees
+      ? `${row.employees.first_name} ${row.employees.last_name}`
+      : 'Unknown employee',
+    avatar_url: row.employees?.avatar_url ?? null,
+    leave_type: row.leave_type,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    days: row.days,
+    remarks: row.remarks,
+    attachment_url: row.attachment_url,
+    status: row.status,
+    reviewed_by: row.reviewed_by,
+    review_comment: row.review_comment,
+    created_at: row.created_at,
+  }
+}
+
+const requestSelection = `
+  *,
+  employees!leave_requests_employee_id_fkey(first_name, last_name, avatar_url)
+`
+
+async function requestById(id: string): Promise<LeaveRequest> {
+  const { data, error } = await supabaseClient()
+    .from('leave_requests')
+    .select(requestSelection)
+    .eq('id', id)
+    .single()
+  const row = unwrap({ data, error }, 'Could not load that leave request.')
+  return toLeaveRequest(row)
+}
 
 export async function myBalances(employeeId: string): Promise<LeaveBalances> {
-  await latency(160)
-  const e = fx.byId(employeeId)
-  return { paid: e?.paid_leave_balance ?? 0, sick: e?.sick_leave_balance ?? 0 }
+  const { data, error } = await supabaseClient()
+    .from('employees')
+    .select('paid_leave_balance, sick_leave_balance')
+    .eq('id', employeeId)
+    .single()
+  const employee = unwrap({ data, error }, 'Could not load your leave balances.')
+  return { paid: employee.paid_leave_balance, sick: employee.sick_leave_balance }
 }
 
 export async function myRequests(employeeId: string): Promise<LeaveRequest[]> {
-  await latency()
-  return clone(
-    fx.leaveRequests
-      .filter((r) => r.employee_id === employeeId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
-  )
+  const { data, error } = await supabaseClient()
+    .from('leave_requests')
+    .select(requestSelection)
+    .eq('employee_id', employeeId)
+    .order('created_at', { ascending: false })
+  const rows = unwrap({ data, error }, 'Could not load your leave requests.')
+  return rows.map(toLeaveRequest)
 }
 
 export async function createRequest(input: {
@@ -27,105 +86,114 @@ export async function createRequest(input: {
   remarks: string
   attachment_url: string | null
 }): Promise<LeaveRequest> {
-  await latency(420)
   if (input.end_date < input.start_date) {
     throw new ServiceError('The end date cannot be before the start date.')
   }
-  const days = workingDaysBetween(input.start_date, input.end_date)
-  if (days === 0) {
+  if (workingDaysBetween(input.start_date, input.end_date) === 0) {
     throw new ServiceError('That range contains no working days.')
   }
 
-  // Unpaid leave draws on no balance, so it is never blocked here.
-  const e = fx.byId(input.employeeId)
-  if (input.leave_type === 'paid' && days > (e?.paid_leave_balance ?? 0)) {
-    throw new ServiceError(`Only ${e?.paid_leave_balance ?? 0} paid days remaining.`)
-  }
-  if (input.leave_type === 'sick' && days > (e?.sick_leave_balance ?? 0)) {
-    throw new ServiceError(`Only ${e?.sick_leave_balance ?? 0} sick days remaining.`)
-  }
-
-  const request: LeaveRequest = {
-    id: `l-${Date.now()}`,
-    employee_id: input.employeeId,
-    employee_name: e ? `${e.first_name} ${e.last_name}` : 'Unknown',
-    avatar_url: e?.avatar_url ?? null,
-    leave_type: input.leave_type,
-    start_date: input.start_date,
-    end_date: input.end_date,
-    days,
-    remarks: input.remarks || null,
-    attachment_url: input.attachment_url,
-    status: 'pending',
-    reviewed_by: null,
-    review_comment: null,
-    created_at: new Date().toISOString(),
-  }
-  fx.leaveRequests.unshift(request)
-  return clone(request)
+  const { data, error } = await supabaseClient().rpc('create_leave_request', {
+    p_leave_type: input.leave_type,
+    p_start_date: input.start_date,
+    p_end_date: input.end_date,
+    p_remarks: input.remarks.trim() || undefined,
+    p_attachment_url: input.attachment_url || undefined,
+  })
+  const created = unwrap({ data, error }, 'Could not submit that leave request.')
+  return requestById(created.id)
 }
 
 export async function cancelRequest(id: string): Promise<void> {
-  await latency()
-  const i = fx.leaveRequests.findIndex((r) => r.id === id)
-  if (i < 0) throw new ServiceError('That request no longer exists.')
-  if (fx.leaveRequests[i].status !== 'pending') {
-    throw new ServiceError('Only a pending request can be cancelled.')
-  }
-  fx.leaveRequests.splice(i, 1)
+  const { data, error } = await supabaseClient()
+    .from('leave_requests')
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error) throw new ServiceError(error.message, error)
+  if (!data) throw new ServiceError('Only your own pending request can be cancelled.')
 }
 
 export async function pendingRequests(): Promise<LeaveRequest[]> {
-  await latency()
-  return clone(fx.leaveRequests.filter((r) => r.status === 'pending'))
+  return allRequests({ status: 'pending' })
 }
 
 export async function allRequests(
   opts: { search?: string; status?: LeaveStatus | 'all' } = {},
 ): Promise<LeaveRequest[]> {
-  await latency()
-  const q = opts.search?.trim().toLowerCase() ?? ''
-  return clone(
-    fx.leaveRequests
-      .filter((r) => !opts.status || opts.status === 'all' || r.status === opts.status)
-      .filter((r) => !q || r.employee_name.toLowerCase().includes(q))
-      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
-  )
+  let query = supabaseClient()
+    .from('leave_requests')
+    .select(requestSelection)
+    .order('created_at', { ascending: false })
+
+  if (opts.status && opts.status !== 'all') query = query.eq('status', opts.status)
+
+  const { data, error } = await query
+  const requests = unwrap({ data, error }, 'Could not load company leave requests.')
+    .map(toLeaveRequest)
+  const search = opts.search?.trim().toLowerCase() ?? ''
+  return search
+    ? requests.filter((request) => request.employee_name.toLowerCase().includes(search))
+    : requests
 }
 
-/**
- * Admin/HR review. In the database this is one transactional function that
- * stamps the reviewer, sets the status, and moves the balance **exactly once**
- * (docs/SCHEMA.md). The guard below is the stub's version of that: re-reviewing
- * something already decided must not deduct a second time.
- */
+/** Reviewer identity and balance movement are derived and enforced by the RPC. */
 export async function reviewRequest(
   id: string,
   status: Extract<LeaveStatus, 'approved' | 'rejected'>,
-  reviewerId: string,
   comment?: string,
 ): Promise<LeaveRequest> {
-  await latency(360)
-  const request = fx.leaveRequests.find((r) => r.id === id)
-  if (!request) throw new ServiceError('That request no longer exists.')
-  if (request.status !== 'pending') {
-    throw new ServiceError('That request has already been decided.')
+  const { data, error } = await supabaseClient().rpc('review_leave_request', {
+    p_request_id: id,
+    p_status: status,
+    p_comment: comment?.trim() || undefined,
+  })
+  const reviewed = unwrap({ data, error }, 'Could not record that leave decision.')
+  return requestById(reviewed.id)
+}
+
+const ATTACHMENT_TYPES: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
+export async function uploadAttachment(file: File): Promise<string> {
+  const extension = ATTACHMENT_TYPES[file.type]
+  if (!extension) throw new ServiceError('Use a PDF, JPG, or PNG certificate.')
+  if (file.size > 10 * 1024 * 1024) {
+    throw new ServiceError('The certificate must be 10 MB or smaller.')
   }
 
-  request.status = status
-  request.reviewed_by = reviewerId
-  request.review_comment = comment?.trim() || null
+  const client = supabaseClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError || !userData.user) throw new ServiceError('Sign in before uploading a certificate.')
+  const { data: employee, error: employeeError } = await client
+    .from('employees')
+    .select('company_id')
+    .eq('id', userData.user.id)
+    .single()
+  if (employeeError || !employee) throw new ServiceError('Could not resolve your company.')
 
-  if (status === 'approved') {
-    const e = fx.byId(request.employee_id)
-    if (e) {
-      if (request.leave_type === 'paid') {
-        e.paid_leave_balance = Math.max(0, (e.paid_leave_balance ?? 0) - request.days)
-      } else if (request.leave_type === 'sick') {
-        e.sick_leave_balance = Math.max(0, (e.sick_leave_balance ?? 0) - request.days)
-      }
-      // Unpaid leave moves no balance.
-    }
-  }
-  return clone(request)
+  const path = `${employee.company_id}/${userData.user.id}/${crypto.randomUUID()}.${extension}`
+  const { error } = await client.storage.from('leave-documents').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new ServiceError('Could not upload that certificate.', error)
+  return path
+}
+
+export async function signedAttachmentUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseClient()
+    .storage
+    .from('leave-documents')
+    .createSignedUrl(path, 60)
+  return unwrap({ data, error }, 'Could not open that certificate.').signedUrl
+}
+
+export async function deleteAttachment(path: string): Promise<void> {
+  const { error } = await supabaseClient().storage.from('leave-documents').remove([path])
+  if (error) throw new ServiceError('Could not clean up that certificate.', error)
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthCard, AuthLayout } from '@/components/auth/AuthLayout'
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter'
 import { Button, Field, Input } from '@/components/ui'
 import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
 
@@ -21,13 +22,13 @@ export function SignUp() {
     firstName: '',
     lastName: '',
     email: '',
+    mobile: '',
     password: '',
     confirm: '',
   })
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [confirmationRequired, setConfirmationRequired] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -45,7 +46,7 @@ export function SignUp() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setTouched({ companyName: true, firstName: true, lastName: true, email: true, password: true, confirm: true })
+    setTouched({ companyName: true, firstName: true, lastName: true, email: true, mobile: true, password: true, confirm: true })
     setError(null)
 
     const problem =
@@ -66,10 +67,11 @@ export function SignUp() {
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
+        mobile: form.mobile,
         password: form.password,
       })
       if (result.confirmationRequired) {
-        setConfirmationRequired(true)
+        setSentTo(form.email.trim().toLowerCase())
       } else {
         navigate('/dashboard', { replace: true })
       }
@@ -129,18 +131,7 @@ export function SignUp() {
           </p>
         }
       >
-        {confirmationRequired ? (
-          <div className="flex flex-col gap-4">
-            <p className="t-body text-text-muted">
-              Check your inbox to confirm your email address. Once confirmed,
-              return here and log in to continue.
-            </p>
-            <Button type="button" variant="strong" className="w-full" onClick={() => navigate('/signin')}>
-              Go to log in
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-2">
           {error && (
             <p
               role="alert"
@@ -197,6 +188,16 @@ export function SignUp() {
             />
           </Field>
 
+          <Field label="Mobile (optional)" htmlFor="signup-mobile">
+            <Input
+              id="signup-mobile"
+              type="tel"
+              autoComplete="tel"
+              value={form.mobile}
+              onChange={set('mobile')}
+            />
+          </Field>
+
           <Field
             label="Password"
             htmlFor="signup-password"
@@ -212,6 +213,7 @@ export function SignUp() {
               onChange={set('password')}
               onBlur={blur('password')}
             />
+            <PasswordStrengthMeter password={form.password} />
           </Field>
 
           <Field label="Confirm password" htmlFor="confirm" error={confirmError}>
@@ -229,10 +231,9 @@ export function SignUp() {
           <Button type="submit" variant="strong" disabled={busy} className="mt-2 w-full">
             {busy ? 'Creating your company…' : 'Create company account'}
           </Button>
-          </form>
-        )}
+        </form>
 
-        <p className="t-caption mt-5 border-t border-border-soft pt-4 text-text-muted">
+        <p className="t-caption mt-3 border-t border-border-soft pt-2 text-text-muted">
           This creates the company and makes you its first admin. You add your
           people afterwards — they never sign up themselves.
         </p>

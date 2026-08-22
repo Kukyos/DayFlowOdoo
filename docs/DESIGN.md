@@ -205,7 +205,7 @@ Two deviations from the reference, both deliberate. Its display line-height of
 without the clipping. Its body line-height of 1.18–1.27 is too tight for
 multi-line form help text; 1.5 is used for anything that wraps.
 
-**`--text-data` is not optional.** Money, login IDs, clock times, work hours and
+**`--text-data` is not optional.** Money, clock times, work hours and
 day counts all use it. A salary table whose digits do not line up column to
 column looks broken however good the palette is, and `tabular-nums` is the entire
 fix — no extra font, no extra bytes.

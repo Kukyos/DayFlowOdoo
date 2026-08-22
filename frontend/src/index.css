@@ -112,6 +112,27 @@
     filter: invert(1);
   }
 
+  /* Centred on the plain auth-panel field, capped so it never forces the
+     panel taller than the space AuthLayout actually gives it — width and
+     height caps both apply so the image shrinks on short *or* narrow
+     viewports rather than pushing the page to scroll. */
+  .login-illustration {
+    width: min(100%, 480px);
+    max-height: 100%;
+    height: auto;
+    object-fit: contain;
+    animation: login-illustration-float 6s ease-in-out infinite;
+  }
+  @keyframes login-illustration-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+
   .t-display {
     font-family: var(--font-display);
     font-size: 64px;
@@ -160,7 +181,7 @@
     line-height: 1.4;
     letter-spacing: 0.04em;
   }
-  /* Money, login IDs, clock times, work hours, day counts. Zero tracking and
+  /* Money, clock times, work hours, day counts. Zero tracking and
      tabular figures so columns line up. DESIGN.md §2.2 — not optional. */
   .t-data {
     font-size: 14px;

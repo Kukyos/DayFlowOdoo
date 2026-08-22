@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Avatar,
@@ -12,15 +12,15 @@ import {
   Select,
   Spinner,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
-import { departments, listEmployees } from '@/services/employees'
+import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
 
 /**
  * The employee directory — the hero screen.
  *
- * Reads `employee_directory`, which exposes only the safe columns. No wage, no
+ * Calls `list_employee_directory()`, which returns only safe columns. No wage, no
  * bank details, no leave balance ever reaches this page, because they are not
  * on the type it receives.
  */
@@ -31,15 +31,34 @@ export function Directory() {
   const q = useDebounced(search)
 
   const { status, data, error, reload } = useAsync(
-    () => listEmployees({ search: q, department: department || undefined }),
-    [q, department],
+    () => listEmployees(),
+    [],
   )
+  const availableDepartments = [
+    ...new Set(
+      (data ?? [])
+        .map((employee) => employee.department)
+        .filter((department): department is string => Boolean(department)),
+    ),
+  ]
+  const employees = useMemo(() => {
+    const normalized = q.trim().toLowerCase()
+    return (data ?? [])
+      .filter((employee) => !department || employee.department === department)
+      .filter((employee) =>
+        !normalized ||
+        `${employee.first_name} ${employee.last_name}`.toLowerCase().includes(normalized) ||
+        (employee.job_position ?? '').toLowerCase().includes(normalized) ||
+        (employee.department ?? '').toLowerCase().includes(normalized) ||
+        (employee.location ?? '').toLowerCase().includes(normalized),
+      )
+  }, [data, department, q])
 
   return (
     <>
       <PageHeader
         title="Employees"
-        subtitle="Everyone at Odoo India, and whether they are in today."
+        subtitle="Everyone in your company, and whether they are in today."
         actions={
           isPrivileged && (
             <Link to="/employees/new">
@@ -54,7 +73,7 @@ export function Directory() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, role, team or location"
+          placeholder="Search by name, position, team or location"
           aria-label="Search employees"
           className="max-w-sm"
         />
@@ -65,7 +84,7 @@ export function Directory() {
           className="max-w-[200px]"
         >
           <option value="">All departments</option>
-          {departments().map((d) => (
+          {availableDepartments.map((d) => (
             <option key={d} value={d}>
               {d}
             </option>
@@ -77,7 +96,7 @@ export function Directory() {
       {status === 'error' && <ErrorState message={error} onRetry={reload} />}
 
       {status === 'ready' &&
-        (data.length === 0 ? (
+        (employees.length === 0 ? (
           <EmptyState
             title="Nobody matches that"
             body="Try a different name, team or location — or clear the filters to see everyone."
@@ -96,12 +115,12 @@ export function Directory() {
         ) : (
           <>
             <p className="t-caption mb-4 text-text-muted">
-              {data.length} {data.length === 1 ? 'person' : 'people'}
+              {employees.length} {employees.length === 1 ? 'person' : 'people'}
               {' · '}
-              {data.filter((e) => e.presence === 'present').length} in the office today
+              {employees.filter((e) => e.presence === 'present').length} in the office today
             </p>
             <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {data.map((e) => (
+              {employees.map((e) => (
                 <Card as="li" key={e.id} className="transition-colors hover:bg-neutral-fill">
                   <Link
                     to={`/employees/${e.id}`}
