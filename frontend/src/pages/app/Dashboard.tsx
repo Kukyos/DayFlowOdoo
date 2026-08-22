@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   ErrorState,
-  PageHeader,
   PresenceDot,
   Spinner,
   StatCard,
@@ -17,7 +16,18 @@ import { attendanceSummary, todayStatus } from '@/services/attendance'
 import { listEmployees } from '@/services/employees'
 import { myBalances, myRequests, pendingRequests } from '@/services/timeOff'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
+import boyGreeting from '@/assets/employee-boy-greeting.png'
 import dashboardIllustration from '@/assets/dashboard-support-illustration.png'
+import girlGreeting from '@/assets/employee-girl-greeting.png'
+
+const GIRL_GREETING_EMPLOYEE_IDS = new Set([
+  'e-01',
+  'e-03',
+  'e-05',
+  'e-07',
+  'e-09',
+  'e-11',
+])
 
 export function Dashboard() {
   const { employee, isPrivileged } = useSession()
@@ -50,18 +60,30 @@ export function Dashboard() {
         className="pointer-events-none absolute right-[calc(50%_-_50vw)] -bottom-10 -z-10 w-[275px] select-none sm:w-[325px] lg:w-[350px]"
       />
 
-      <PageHeader
-        title={`Good to see you, ${employee?.first_name}`}
-        subtitle={
-          data.status.row?.check_in
-            ? `Checked in at ${formatTime(data.status.row.check_in)}${
-                data.status.row.check_out
-                  ? `, out at ${formatTime(data.status.row.check_out)}.`
-                  : ' — still in.'
-              }`
-            : 'You have not checked in today. The control is in the header.'
-        }
-      />
+      <div className="mb-3 flex flex-wrap items-center gap-4 sm:gap-5">
+        <div>
+          <h1 className="t-h1">Good to see you, {employee?.first_name}</h1>
+          <p className="t-caption mt-2 text-text-muted">
+            {data.status.row?.check_in
+              ? `Checked in at ${formatTime(data.status.row.check_in)}${
+                  data.status.row.check_out
+                    ? `, out at ${formatTime(data.status.row.check_out)}.`
+                    : ' — still in.'
+                }`
+              : 'You have not checked in today. The control is in the header.'}
+          </p>
+        </div>
+        <img
+          src={
+            employee && GIRL_GREETING_EMPLOYEE_IDS.has(employee.id)
+              ? girlGreeting
+              : boyGreeting
+          }
+          alt=""
+          aria-hidden="true"
+          className="h-28 w-28 shrink-0 object-contain sm:h-32 sm:w-32"
+        />
+      </div>
 
       <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {isPrivileged ? (
