@@ -10,6 +10,9 @@ the file; that is what keeps this file from being the thing everyone conflicts o
 Do not start a tier until the one above is genuinely done. Six excellent screens
 beat thirteen hollow ones — but only if the six include something beyond CRUD.
 
+**Markers:** ☐ not started · ◐ partly done, with what remains stated in the row ·
+☑ done and verified. Never tick ☑ for something only verified in theory.
+
 ---
 
 ## Stage 1 — Understand and scaffold
@@ -19,11 +22,20 @@ beat thirteen hollow ones — but only if the six include something beyond CRUD.
 | 1.1 | Read the PDF and the wireframes in `materials/`. Whole team | all | ☐ |
 | 1.2 | Docs commit: this file, `SCHEMA.md`, `SERVICES.md`, `AUTH.md`, `DESIGN.md`, `HACKATHON_PLAN.md`, `BUILD_RULES.md`, `README.md` | Armaan | ☑ |
 | 1.3 | Vite + React + TS + Tailwind + Router scaffold in `frontend/` | Armaan | ☑ |
-| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ☑ |
+| 1.4 | `vercel.json` with the SPA rewrite. **Without it every deep-link refresh 404s** and twenty minutes go into blaming the router | Armaan | ◐ |
 | 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☑ |
-| 1.6 | Vercel project linked; production tracks `main`; branch previews on | Armaan | ☐ |
+| 1.6 | Vercel project linked; production tracks `main`; branch previews on. **Leave Root Directory as the repo root** — see the note below | Armaan | ☐ |
+| 1.6a | **Verify the SPA rewrite on the deployed preview**: open a deep link such as `/employees/x` and hard-refresh. 200, not 404. This is the only test that exercises `vercel.json`, and it closes 1.4 | Armaan | ☐ |
 | 1.7 | Supabase project created, keys shared with the team | Praneet | ☐ |
 | 1.8 | Each builder copies `docs/BUILD_RULES.md` into a local, gitignored `CLAUDE.md` | all | ☐ |
+
+> **Linking Vercel — the one setting that breaks the deploy.** Vercel looks for
+> `vercel.json` *inside* the configured Root Directory. Ours is at the repo root
+> and builds `frontend/` itself, so **Root Directory must stay as the repo
+> root.** Vercel will often suggest `frontend` instead, because that is where the
+> only `package.json` is. Accept that suggestion and the rewrite is silently
+> ignored: the build still goes green, the landing page still loads, and every
+> deep-link refresh in production 404s.
 
 ## Stage 2 — Landing and login set the look
 

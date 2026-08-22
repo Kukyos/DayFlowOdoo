@@ -49,7 +49,7 @@ export function Scaffold({ name }: { name: string }) {
         <button
           type="button"
           onClick={() => setThemeState(toggleTheme())}
-          className="rounded-[var(--radius-control)] border border-border px-5 py-2 t-caption font-medium hover:bg-neutral-fill"
+          className="rounded-control border border-border px-5 py-2 t-caption font-medium hover:bg-neutral-fill"
         >
           {theme === 'dark' ? 'Light theme' : 'Dark theme'}
         </button>
@@ -85,15 +85,15 @@ export function Scaffold({ name }: { name: string }) {
           </p>
         </div>
 
-        <h2 className="t-h2 mt-16">Tokens</h2>
+        <h2 className="t-h2 mt-16 font-heading">Tokens</h2>
         <div className="mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {COLORS.map(([token, label]) => (
             <div
               key={token}
-              className="rounded-[var(--radius-card)] border border-border p-5"
+              className="rounded-card border border-border p-5"
             >
               <div
-                className="h-14 rounded-[var(--radius-control)] border border-border"
+                className="h-14 rounded-control border border-border"
                 style={{ background: `var(${token})` }}
               />
               <p className="t-label mt-4">{label}</p>
@@ -109,15 +109,16 @@ export function Scaffold({ name }: { name: string }) {
           in greyscale before ticking task 5.4a.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
+          {/* Utility classes, not inline style — DESIGN.md forbids raw colour in
+              a page, and these also prove the status utilities generate. */}
           {[
-            ['--success', '●', 'In office'],
-            ['--warning', '●', 'Absent'],
-            ['--info', '✈', 'On leave'],
-          ].map(([token, glyph, label]) => (
+            ['bg-success', '●', 'In office'],
+            ['bg-warning', '●', 'Absent'],
+            ['bg-info', '✈', 'On leave'],
+          ].map(([fill, glyph, label]) => (
             <span
               key={label}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border px-3 py-1.5 t-label"
-              style={{ background: `var(${token})`, color: 'var(--accent-ink)' }}
+              className={`${fill} inline-flex items-center gap-2 rounded-control border border-border px-3 py-1.5 t-label text-accent-ink`}
             >
               <span aria-hidden="true">{glyph}</span>
               {label}
@@ -125,21 +126,31 @@ export function Scaffold({ name }: { name: string }) {
           ))}
         </div>
 
+        <p className="t-caption mt-6 max-w-[65ch] text-text-muted">
+          The swatch grid above reads each variable directly, because that is
+          what it is testing. Everywhere else, use the utility —{' '}
+          <code>bg-success</code>, <code>border-border</code>,{' '}
+          <code>rounded-card</code> — never a raw <code>var()</code> or a hex.
+        </p>
+
         <h2 className="t-h2 mt-16">Routes</h2>
         <div className="mt-6 flex flex-wrap gap-3">
           {ROUTES.map((path) => (
             <Link
               key={path}
               to={path}
-              className="rounded-[var(--radius-control)] border border-border px-5 py-2 t-caption hover:bg-neutral-fill"
+              className="rounded-control border border-border px-5 py-2 t-caption hover:bg-neutral-fill"
             >
               {path}
             </Link>
           ))}
         </div>
-        <p className="t-caption mt-6 text-text-muted">
-          Open any of these directly and refresh. A 404 on refresh means the SPA
-          rewrite in <code>vercel.json</code> is not being applied.
+        <p className="t-caption mt-6 max-w-[65ch] text-text-muted">
+          These prove the router locally, and nothing more: the Vite dev server
+          serves <code>index.html</code> for any unmatched path, so a deep link
+          works here whether or not the rewrite in <code>vercel.json</code> is
+          applied. The rewrite is only ever tested by hard-refreshing a deep
+          link on a deployed preview URL.
         </p>
       </main>
     </div>

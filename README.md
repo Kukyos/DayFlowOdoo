@@ -55,8 +55,7 @@ frontend/src/
   context/            AuthProvider
   types/database.ts   generated from the schema, never hand-edited
 backend/supabase/
-  migrations/
-  seed.sql
+  migrations/       schema, RLS, functions
 docs/
 ```
 
@@ -98,6 +97,14 @@ npm run dev
 Everyone runs against the **same shared Supabase project**: one schema, one
 source of truth, no drift across laptops. Only the backend owner runs migrations,
 and destructive changes get announced first.
+
+**Deploying**
+
+`vercel.json` lives at the repo root and builds `frontend/` itself, so when
+linking the project **leave Root Directory as the repo root**. Vercel tends to
+suggest `frontend`, since that is where the only `package.json` is — take that
+suggestion and the SPA rewrite is ignored, the build still goes green, and every
+deep-link refresh 404s in production.
 
 **Checks**
 
