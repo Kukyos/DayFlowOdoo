@@ -57,12 +57,19 @@ export function Directory() {
   }, [data, department, q])
 
   return (
-    <div className="relative isolate min-h-[calc(100vh-7rem)]">
+    <div className="relative isolate">
+      {/*
+        Fixed to the viewport corner, not the page's own bottom — same fix as
+        the dashboard's support illustration. Anchoring to a `min-h` wrapper's
+        bottom left a gap whenever the directory's real content (few
+        employees, or a narrow filtered result) didn't reach that forced
+        height. X = `left-*`, Y = `bottom-*`.
+      */}
       <img
         src={directoryIllustration}
         alt=""
         aria-hidden="true"
-        className="pointer-events-none absolute left-[calc(50%_-_50vw_+_0.75rem)] -bottom-10 -z-10 w-[95vw] max-w-[960px] select-none sm:left-[calc(50%_-_50vw_+_2rem)]"
+        className="pointer-events-none fixed bottom-0 left-3 -z-10 w-[95vw] max-w-[960px] select-none sm:left-8"
       />
       <img
         src={directoryActionIllustration}

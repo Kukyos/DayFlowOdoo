@@ -48,36 +48,61 @@ export function Dashboard() {
   const inOffice = data.inOffice
 
   return (
-    <div className="relative isolate min-h-[calc(100vh-9rem)] pb-44 sm:pb-52 lg:pb-0">
+    <div className="relative isolate">
+      {/*
+        Pinned to the actual browser viewport corner — position: fixed, not
+        absolute — so it never depends on how tall the dashboard content is.
+        The old version was glued to the bottom of a `min-h-[calc(100vh-9rem)]`
+        wrapper; on any page shorter than that forced height, the gap between
+        the real content and the (correctly flush) illustration read as dead
+        space. Fixed positioning removes the "flush against what, exactly?"
+        question entirely — X = `right-*`, Y = `bottom-*`, both below.
+      */}
       <img
         src={dashboardIllustration}
         alt=""
         aria-hidden="true"
-        className="pointer-events-none absolute right-[calc(50%_-_50vw)] -bottom-10 -z-10 w-[275px] select-none sm:w-[325px] lg:w-[350px]"
+        className="pointer-events-none fixed bottom-0 right-0 -z-10 w-[275px] select-none sm:right-4 sm:w-[325px] lg:right-8 lg:w-[350px]"
       />
 
-      <div className="mb-3 flex flex-wrap items-center gap-4 sm:gap-5">
-        <div>
-          <h1 className="t-h1">Good to see you, {employee?.first_name}</h1>
-          <p className="t-caption mt-2 text-text-muted">
-            {data.today.row?.check_in
-              ? `Checked in at ${formatTime(data.today.row.check_in)}${
-                  data.today.row.check_out
-                    ? `, out at ${formatTime(data.today.row.check_out)}.`
-                    : ' — still in.'
-                }`
-              : 'You have not checked in today. The control is in the header.'}
-          </p>
-        </div>
+      <div className="mb-3">
+        <h1 className="t-h1">Good to see you, {employee?.first_name}</h1>
+        <p className="t-caption mt-2 text-text-muted">
+          {data.today.row?.check_in
+            ? `Checked in at ${formatTime(data.today.row.check_in)}${
+                data.today.row.check_out
+                  ? `, out at ${formatTime(data.today.row.check_out)}.`
+                  : ' — still in.'
+              }`
+            : 'You have not checked in today. The control is in the header.'}
+        </p>
+      </div>
+
+      {/*
+        The greeting mascot sits behind the last stat card (top-right of this
+        row), not in the header. `relative` here is the anchor both the image
+        and the grid share.
+
+        X = `right-[…]` (distance from the row's right edge — the card the
+            image should center behind is the rightmost one, so this is
+            roughly half the card's width, nudged so the head/wave clears the
+            card's edge rather than hiding dead-center behind it)
+        Y = `top-[…]` (distance down from the row's top — roughly half the
+            card's ~112px height, so the image is vertically centered on it)
+
+        Both are `lg:` only. Below `lg` the grid drops to 2 or 1 columns and
+        "last card" stops meaning "top-right", so the image would land behind
+        the wrong card — hidden there rather than guessing.
+      */}
+      <div className="relative">
         <img
           src={greetingImageFor(employee?.id)}
           alt=""
           aria-hidden="true"
-          className="h-28 w-28 shrink-0 object-contain sm:h-32 sm:w-32"
+          className="pointer-events-none absolute -z-10 hidden h-40 w-40 select-none object-contain lg:right-6 lg:-top-20 lg:block"
         />
-      </div>
 
-      <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {isPrivileged ? (
           <>
             <StatCard label="Headcount" value={`${data.company?.headcount ?? 0}`} hint="active employees" />
@@ -109,6 +134,7 @@ export function Dashboard() {
             <StatCard label="Sick leave" value={data.balances.sick.toFixed(2)} hint="days left" />
           </>
         )}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

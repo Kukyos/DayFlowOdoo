@@ -369,6 +369,11 @@ function PrivateInfo({
 }) {
   const [address, setAddress] = useState(employee.address ?? '')
   const [mobile, setMobile] = useState(employee.mobile ?? '')
+  const [dateOfBirth, setDateOfBirth] = useState(employee.date_of_birth ?? '')
+  const [panNo, setPanNo] = useState(employee.pan_no ?? '')
+  const [uanNo, setUanNo] = useState(employee.uan_no ?? '')
+  const [bankAccountNumber, setBankAccountNumber] = useState(employee.bank_account_number ?? '')
+  const [ifscCode, setIfscCode] = useState(employee.ifsc_code ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -376,7 +381,15 @@ function PrivateInfo({
     setBusy(true)
     setError(null)
     try {
-      await updateEmployee(employee.id, { address, mobile })
+      await updateEmployee(employee.id, {
+        address: address.trim() || null,
+        mobile: mobile.trim() || null,
+        date_of_birth: dateOfBirth || null,
+        pan_no: panNo.trim() || null,
+        uan_no: uanNo.trim() || null,
+        bank_account_number: bankAccountNumber.trim() || null,
+        ifsc_code: ifscCode.trim() || null,
+      })
       onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save private information.')
@@ -389,16 +402,29 @@ function PrivateInfo({
     <div className="grid gap-8 lg:grid-cols-2">
       <Card>
         <h2 className="t-h3 mb-3">Personal</h2>
-        <Row
-          label="Date of birth"
-          value={employee.date_of_birth ? formatDate(employee.date_of_birth) : null}
-        />
-        <Row label="PAN" value={employee.pan_no} />
-        <Row label="UAN" value={employee.uan_no} />
         {editable ? (
           <>
             <Field label="Mobile" htmlFor="mobile" className="mt-4">
-              <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+              <Input
+                id="mobile"
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
+            </Field>
+            <Field label="Date of birth" htmlFor="date-of-birth" className="mt-4">
+              <Input
+                id="date-of-birth"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+              />
+            </Field>
+            <Field label="PAN" htmlFor="pan" className="mt-4">
+              <Input id="pan" value={panNo} onChange={(e) => setPanNo(e.target.value)} />
+            </Field>
+            <Field label="UAN" htmlFor="uan" className="mt-4">
+              <Input id="uan" value={uanNo} onChange={(e) => setUanNo(e.target.value)} />
             </Field>
             <Field label="Address" htmlFor="address" className="mt-4">
               <Textarea
@@ -422,8 +448,26 @@ function PrivateInfo({
 
       <Card>
         <h2 className="t-h3 mb-3">Bank</h2>
-        <Row label="Account number" value={employee.bank_account_number} />
-        <Row label="IFSC" value={employee.ifsc_code} />
+        {editable ? (
+          <>
+            <Field label="Account number" htmlFor="bank-account-number">
+              <Input
+                id="bank-account-number"
+                inputMode="numeric"
+                value={bankAccountNumber}
+                onChange={(e) => setBankAccountNumber(e.target.value)}
+              />
+            </Field>
+            <Field label="IFSC" htmlFor="ifsc" className="mt-4">
+              <Input id="ifsc" value={ifscCode} onChange={(e) => setIfscCode(e.target.value)} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Row label="Account number" value={employee.bank_account_number} />
+            <Row label="IFSC" value={employee.ifsc_code} />
+          </>
+        )}
         <p className="t-caption mt-4 text-text-muted">
           Bank details are visible only to you and to HR. They are never part of
           the company directory.
