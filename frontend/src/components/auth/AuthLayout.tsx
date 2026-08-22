@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Button } from '@/components/ui'
+import { Button, Modal } from '@/components/ui'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import dayflowLogo from '@/assets/dayflow-df-logo.png'
 import { WorkweekMark } from './WorkweekMark'
@@ -22,6 +22,8 @@ export function AuthLayout({
   otherAction: 'signin' | 'signup'
 }) {
   const [theme, setThemeState] = useState<Theme>(currentTheme)
+  const [termsOpen, setTermsOpen] = useState(false)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
@@ -68,8 +70,14 @@ export function AuthLayout({
           <div className="w-full max-w-[440px]">{children}</div>
         </div>
 
-        {/* Bottom furniture, matching the reference: brand mark left, terms right.
-            Hidden below lg so it never overlaps the form on a phone. */}
+        {/* Legal links, reachable at every width. Below lg they sit under the
+            form since the brand-mark furniture is hidden there; at lg they move
+            into that furniture row so nothing on the phone layout duplicates. */}
+        <div className="flex items-center justify-center gap-2 pb-8 lg:hidden">
+          <LegalLinkButton onClick={() => setPrivacyOpen(true)}>Privacy Policy</LegalLinkButton>
+          <LegalLinkButton onClick={() => setTermsOpen(true)}>Terms &amp; Conditions</LegalLinkButton>
+        </div>
+
         <div className="pointer-events-none hidden items-end justify-between px-12 pb-8 lg:flex">
           <img
             src={dayflowLogo}
@@ -77,11 +85,148 @@ export function AuthLayout({
             className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
             aria-hidden="true"
           />
-          <span className="pointer-events-auto rounded-full border border-current px-4 py-2 t-caption">
-            Terms &amp; Conditions
-          </span>
+          <div className="pointer-events-auto flex items-center gap-2">
+            <LegalLinkButton onClick={() => setPrivacyOpen(true)}>Privacy Policy</LegalLinkButton>
+            <LegalLinkButton onClick={() => setTermsOpen(true)}>Terms &amp; Conditions</LegalLinkButton>
+          </div>
         </div>
       </main>
+
+      <Modal open={termsOpen} onClose={() => setTermsOpen(false)} title="Terms and Conditions">
+        <TermsContent />
+      </Modal>
+      <Modal open={privacyOpen} onClose={() => setPrivacyOpen(false)} title="Privacy Policy">
+        <PrivacyContent />
+      </Modal>
+    </div>
+  )
+}
+
+/** One consistent pill style for both legal links, on the phone footer and the desktop furniture. */
+function LegalLinkButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full border border-current px-4 py-2 t-caption transition-colors hover:bg-auth-panel-ink/10"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Plain-language MVP terms. Placeholder legal copy, not reviewed counsel. */
+function TermsContent() {
+  return (
+    <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1 t-body text-text-muted">
+      <p>
+        These terms govern your company's use of Dayflow. By creating a company
+        account or signing in, your admin agrees to them on behalf of your
+        organisation, and every invited employee agrees to them by signing in.
+      </p>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">1. What Dayflow is for</h3>
+        <p>
+          Dayflow is a workforce record system: employee profiles, attendance,
+          time off, and a per-employee salary breakdown, scoped to your
+          company. It is not a payroll processor and does not move money.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">2. Accounts</h3>
+        <p>
+          Only an admin or HR officer can create an employee account, through
+          an invite. Employees do not self-register. Each person is
+          responsible for keeping their own password confidential and for
+          activity under their account.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">3. Company data</h3>
+        <p>
+          Everything entered — profiles, attendance, leave requests, wage
+          figures — belongs to your company. Row-level security scopes every
+          query to your company alone; no other company's data is visible from
+          yours.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">4. Acceptable use</h3>
+        <p>
+          Use Dayflow only for legitimate workforce administration for your
+          own organisation. Do not attempt to access another company's
+          records, share login credentials, or use the service to store data
+          you are not authorised to hold.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">5. Changes</h3>
+        <p>
+          This is an early build and these terms may change as the product
+          does. Material changes will be reflected here before they take
+          effect.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** Plain-language MVP privacy policy. Placeholder legal copy, not reviewed counsel. */
+function PrivacyContent() {
+  return (
+    <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1 t-body text-text-muted">
+      <p>
+        This explains what Dayflow stores about you and your company, and who
+        can see it.
+      </p>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">1. What we store</h3>
+        <p>
+          Account details (name, work email), employment data (role,
+          department, attendance, leave balances), and — for admins and HR
+          only — wage and bank details entered for payroll purposes. Nothing
+          beyond what a page on Dayflow actually asks for.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">2. Who can see it</h3>
+        <p>
+          Coworkers see only directory-safe fields: name, position, department,
+          and whether you are in today. Private information, salary, and bank
+          details are visible to you and to your company's admin/HR officers
+          only, enforced at the database level, not just hidden in the
+          interface.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">3. Company isolation</h3>
+        <p>
+          Your data is scoped to your company. Nobody outside it — no other
+          company on Dayflow — can query or view your records.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">4. How it's used</h3>
+        <p>
+          Solely to run the product: showing your directory, tracking
+          attendance, processing leave requests, and computing your salary
+          breakdown. It is not sold, and it is not used for advertising.
+        </p>
+      </div>
+      <div>
+        <h3 className="t-h3 mb-1 text-text">5. Your controls</h3>
+        <p>
+          You can update your own profile, private details, and resume at any
+          time from My Profile. To correct or remove data you cannot edit
+          yourself, contact your company's admin or HR officer.
+        </p>
+      </div>
     </div>
   )
 }
