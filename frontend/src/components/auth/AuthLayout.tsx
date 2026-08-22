@@ -70,8 +70,14 @@ export function AuthLayout({
           <div className="w-full max-w-[440px]">{children}</div>
         </div>
 
-        {/* Bottom furniture, matching the reference: brand mark left, terms right.
-            Hidden below lg so it never overlaps the form on a phone. */}
+        {/* Legal links, reachable at every width. Below lg they sit under the
+            form since the brand-mark furniture is hidden there; at lg they move
+            into that furniture row so nothing on the phone layout duplicates. */}
+        <div className="flex items-center justify-center gap-2 pb-8 lg:hidden">
+          <LegalLinkButton onClick={() => setPrivacyOpen(true)}>Privacy Policy</LegalLinkButton>
+          <LegalLinkButton onClick={() => setTermsOpen(true)}>Terms &amp; Conditions</LegalLinkButton>
+        </div>
+
         <div className="pointer-events-none hidden items-end justify-between px-12 pb-8 lg:flex">
           <img
             src={dayflowLogo}
@@ -80,20 +86,8 @@ export function AuthLayout({
             aria-hidden="true"
           />
           <div className="pointer-events-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPrivacyOpen(true)}
-              className="rounded-full border border-current px-4 py-2 t-caption"
-            >
-              Privacy Policy
-            </button>
-            <button
-              type="button"
-              onClick={() => setTermsOpen(true)}
-              className="rounded-full border border-current px-4 py-2 t-caption"
-            >
-              Terms &amp; Conditions
-            </button>
+            <LegalLinkButton onClick={() => setPrivacyOpen(true)}>Privacy Policy</LegalLinkButton>
+            <LegalLinkButton onClick={() => setTermsOpen(true)}>Terms &amp; Conditions</LegalLinkButton>
           </div>
         </div>
       </main>
@@ -105,6 +99,25 @@ export function AuthLayout({
         <PrivacyContent />
       </Modal>
     </div>
+  )
+}
+
+/** One consistent pill style for both legal links, on the phone footer and the desktop furniture. */
+function LegalLinkButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full border border-current px-4 py-2 t-caption transition-colors hover:bg-auth-panel-ink/10"
+    >
+      {children}
+    </button>
   )
 }
 
