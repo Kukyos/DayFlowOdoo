@@ -12,9 +12,9 @@ companies → employees
 
 **Implementation status (2026-08-22):** the repository and linked project have
 the auth/company foundation, forced-password-change guard, company-scoped safe
-directory RPC, controlled employee updates, and check-in/out attendance table
-and RPCs. Leave, employee creation, attendance history pages, Storage, and
-later-tier tables remain future milestones.
+directory RPC, controlled employee updates, live attendance actions/history,
+and the employee/admin leave workflow through atomic review. Employee creation,
+Storage, seed data, and later-tier tables remain future milestones.
 
 ## `companies`
 
@@ -118,9 +118,12 @@ tables.
 | `review_comment` | text | |
 | `created_at` | timestamptz default now() | |
 
-Approving a paid or sick request decrements the matching balance in the same
-database operation. Unpaid leave changes no balance. Re-reviewing an already
-approved request must not deduct a balance twice.
+`create_leave_request()` derives the caller and weekday count in the database;
+the browser cannot insert an arbitrary employee or day total. Approving a paid
+or sick request through `review_leave_request()` decrements the matching
+balance in the same database transaction. Unpaid leave changes no balance.
+Re-reviewing an already approved or rejected request fails without changing a
+balance twice.
 
 ## Directory-safe employee RPC
 

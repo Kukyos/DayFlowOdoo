@@ -102,3 +102,15 @@ migrations through `20260822065110_replace_directory_view_with_guarded_rpc.sql`.
 The security-definer directory view was replaced with the narrow guarded RPC;
 the remote advisor now has only intentional guarded-RPC warnings plus the
 Dashboard-level leaked-password-protection setting.
+
+Milestones 5–7 were verified on 2026-08-22 with rollback-only local SQL tests.
+They confirmed own attendance reads, the guarded Admin/HR company-day register,
+server-derived leave identity and weekday count, own pending cancellation,
+cross-company denial, privileged company request reads, exact paid-balance
+deduction, reviewer stamping, leave-driven directory/register presence, and
+re-review denial without a second deduction. The linked project is at migration
+`20260822071136_consolidate_attendance_and_leave_read_policies`; its final
+attendance and leave SELECT policies were inspected directly. Signed-in
+employee and Admin/HR browser verification still requires private shared-project
+credentials. Security-advisor warnings are limited to the intentional guarded
+browser RPCs and the Dashboard-level leaked-password-protection setting.

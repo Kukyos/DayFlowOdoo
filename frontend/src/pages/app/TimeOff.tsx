@@ -214,7 +214,7 @@ function RequestModal({
         start_date: start,
         end_date: end,
         remarks,
-        attachment_url: type === 'sick' ? 'certificate.pdf' : null,
+        attachment_url: null,
       })
       onCreated()
       onClose()
@@ -273,8 +273,8 @@ function RequestModal({
 
         {type === 'sick' && (
           <p className="t-caption rounded-control border border-border-soft px-3 py-2 text-text-muted">
-            Sick leave needs a certificate. Upload lands with Storage in Stage 4;
-            the request carries the attachment field already.
+            Certificate upload is part of the later Storage milestone. For now,
+            you can submit the request without an attachment.
           </p>
         )}
 
