@@ -16,6 +16,7 @@ import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
+import directoryIllustration from '@/assets/employee-directory-illustration.png'
 
 /**
  * The employee directory — the hero screen.
@@ -147,6 +148,35 @@ export function Directory() {
             </ul>
           </>
         ))}
+
+      {/*
+        Normal document flow, not absolute or fixed — this image is taller
+        (natively ~560x300, rendered up to 960px wide) than a short directory
+        page's real content, so any "pin to the bottom of a box" trick
+        necessarily pokes up above wherever that box's top happens to be. In a
+        two-row directory that meant overlapping the card grid; in a one-row
+        directory it would poke above the page header entirely. Letting it sit
+        in flow after the grid means it only ever adds height below the real
+        content — never overlaps it, regardless of how many employees there
+        are.
+
+        `w-full` (not a `vw` unit): a normal-flow block sizes against its own
+        container, not the viewport — `main` is padded and capped at 1440px,
+        so a viewport-relative width here would overflow it and cause a
+        horizontal scrollbar. The old `vw` sizing was only correct back when
+        this broke out to `fixed`/`absolute` positioning.
+
+        Left edge flush against the container's own padding (no extra offset):
+        the source PNG crops its leftmost figure at the canvas edge, so any
+        positive offset just adds dead space in front of an already-cropped
+        figure — flush reads as an intentional bleed, not a mistake.
+      */}
+      <img
+        src={directoryIllustration}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none mt-10 block w-full max-w-[720px] select-none"
+      />
     </>
   )
 }
