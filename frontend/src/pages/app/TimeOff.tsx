@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Avatar,
   Button,
@@ -24,6 +25,7 @@ import {
   allRequests,
   cancelRequest,
   createRequest,
+  deleteAttachment,
   myBalances,
   myRequests,
   reviewRequest,
@@ -35,7 +37,10 @@ import type { LeaveStatus, LeaveType } from '@/types/models'
 
 export function TimeOff() {
   const { isPrivileged } = useSession()
-  const [mode, setMode] = useState<'mine' | 'approvals'>(isPrivileged ? 'approvals' : 'mine')
+  const location = useLocation()
+  const [mode, setMode] = useState<'mine' | 'approvals'>(
+    isPrivileged && location.pathname.endsWith('/approvals') ? 'approvals' : 'mine',
+  )
 
   return (
     <>
@@ -211,8 +216,9 @@ function RequestModal({
     if (!employee) return
     setBusy(true)
     setError(null)
+    let attachmentUrl: string | null = null
     try {
-      const attachmentUrl = type === 'sick' && attachment
+      attachmentUrl = type === 'sick' && attachment
         ? await uploadAttachment(attachment)
         : null
       await createRequest({
@@ -228,6 +234,7 @@ function RequestModal({
       setRemarks('')
       setAttachment(null)
     } catch (err) {
+      if (attachmentUrl) void deleteAttachment(attachmentUrl).catch(() => undefined)
       setError(err instanceof Error ? err.message : 'Could not submit that request.')
     } finally {
       setBusy(false)
@@ -317,7 +324,7 @@ function RequestModal({
 }
 
 function Approvals() {
-  const { employee, refreshEmployee } = useSession()
+  const { refreshEmployee } = useSession()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending')
   const q = useDebounced(search)
@@ -330,11 +337,14 @@ function Approvals() {
   )
 
   async function review(id: string, decision: 'approved' | 'rejected') {
-    if (!employee) return
+    const comment = window.prompt(
+      decision === 'approved' ? 'Approval comment (optional)' : 'Rejection comment (optional)',
+    )
+    if (comment === null) return
     setActing(id)
     setError(null)
     try {
-      await reviewRequest(id, decision, employee.id)
+      await reviewRequest(id, decision, comment)
       reload()
       void refreshEmployee()
     } catch (e) {

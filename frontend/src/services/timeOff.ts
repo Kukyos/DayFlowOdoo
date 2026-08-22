@@ -142,7 +142,6 @@ export async function allRequests(
 export async function reviewRequest(
   id: string,
   status: Extract<LeaveStatus, 'approved' | 'rejected'>,
-  _reviewerId: string,
   comment?: string,
 ): Promise<LeaveRequest> {
   const { data, error } = await supabaseClient().rpc('review_leave_request', {
@@ -192,4 +191,9 @@ export async function signedAttachmentUrl(path: string): Promise<string> {
     .from('leave-documents')
     .createSignedUrl(path, 60)
   return unwrap({ data, error }, 'Could not open that certificate.').signedUrl
+}
+
+export async function deleteAttachment(path: string): Promise<void> {
+  const { error } = await supabaseClient().storage.from('leave-documents').remove([path])
+  if (error) throw new ServiceError('Could not clean up that certificate.', error)
 }

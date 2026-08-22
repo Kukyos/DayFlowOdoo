@@ -26,7 +26,6 @@ Created with the first admin during company sign-up.
 |---|---|---|
 | `id` | uuid pk | |
 | `name` | text not null | e.g. `Odoo India` |
-| `login_prefix` | text | e.g. `OI`; used only when generating a display login ID |
 | `logo_url` | text | company-logo Storage URL |
 | `created_at` | timestamptz default now() | |
 
@@ -40,7 +39,6 @@ information, salary, leave-allocation, or login-counter tables.
 |---|---|---|
 | `id` | uuid pk | → `auth.users(id)` on delete cascade |
 | `company_id` | uuid not null | → `companies(id)` |
-| `login_id` | text unique | Optional generated HR-facing ID, e.g. `OIJODO20220001`; email is the MVP sign-in credential |
 | `role` | text not null | `admin`, `hr`, or `employee` |
 | `first_name` / `last_name` | text not null | |
 | `work_email` | text not null | Auth email |
@@ -159,10 +157,10 @@ the browser; never expose a service-role key.
 | resource | employee | admin / HR |
 |---|---|---|
 | `companies` | select own company | select and update own company |
-| `employees` | select own full row; update own permitted profile/private fields | select, insert, update company employees |
+| `employees` | select own full row; update own permitted profile/private fields | select and update company employees; create accounts through the Edge Function |
 | `list_employee_directory()` | read company directory-safe data | read company directory-safe data |
-| `attendance` | select own; check in/out own current-day row | select and update company attendance |
-| `leave_requests` | select own; create own; cancel/update pending own request | select all company requests; approve or reject |
+| `attendance` | select own; check in/out own current-day row through RPCs | select company attendance; check in/out only the caller's row through RPCs |
+| `leave_requests` | select own; create own through RPC; delete pending own request | select company requests; approve or reject through the transactional RPC |
 
 An employee update policy must not allow changing `role`, `company_id`,
 `monthly_wage`, leave balances, `is_active`, or another employee's identity.
@@ -183,8 +181,8 @@ temporary password, and returns that password once to the creating Admin/HR.
 The service-role key and plaintext password are never stored in the browser or
 database. The employee must replace the temporary password at first sign-in.
 Employees do not self-register. Email and password are the required sign-in
-path. A generated `login_id` is useful for display but is not an authentication
-dependency in this MVP.
+path. Employee creation generates only a temporary password; the employee's
+work email is the sole sign-in identifier.
 
 Storage buckets: public `avatars` and `company-logos`, plus private
 `leave-documents`. Object paths begin with the caller's company ID; employee

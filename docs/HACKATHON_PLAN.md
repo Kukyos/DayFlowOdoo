@@ -486,4 +486,4 @@ Still open, and each one blocks something:
 The PDF describes open employee registration. The MVP does not: public Sign Up
 registers a company and its first admin only; normal employees are created by
 Admin/HR with a one-time temporary password and sign in with email and password.
-An optional generated login ID is display data, not an authentication path.
+No separate login ID is generated; the work email is the sign-in identifier.

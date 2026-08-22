@@ -33,9 +33,8 @@ components must not make their own role comparison.
 
 ## Sign-in
 
-The required MVP path is **email + password**. `login_id` may be generated for
-HR display, but resolving it before authentication is out of scope. This avoids
-an unauthenticated employee-email lookup and keeps time on HR features.
+The required MVP path is **email + password**. Employee creation generates only
+a temporary password; the employee's work email is their sign-in identifier.
 
 Email confirmation is required. Company sign-up creates the Auth user, company,
 and first admin atomically, but returns no session. The page shows a check-email

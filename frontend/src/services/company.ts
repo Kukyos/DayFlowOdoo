@@ -38,3 +38,13 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
   if (error) throw new ServiceError('Could not upload that company logo.', error)
   return client.storage.from('company-logos').getPublicUrl(path).data.publicUrl
 }
+
+export async function deleteCompanyLogo(publicUrl: string): Promise<void> {
+  const marker = '/storage/v1/object/public/company-logos/'
+  const pathname = new URL(publicUrl).pathname
+  const markerIndex = pathname.indexOf(marker)
+  if (markerIndex < 0) return
+  const path = decodeURIComponent(pathname.slice(markerIndex + marker.length))
+  const { error } = await supabaseClient().storage.from('company-logos').remove([path])
+  if (error) throw new ServiceError('Could not remove the previous company logo.', error)
+}

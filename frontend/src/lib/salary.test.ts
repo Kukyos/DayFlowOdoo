@@ -57,6 +57,7 @@ for (const bad of [0, -5000, Number.NaN, Number.POSITIVE_INFINITY]) {
   const s = computeSalary(bad)
   assert.equal(s.gross, 0)
   assert.equal(s.net, 0)
+  assert.equal(s.isValid, false)
   assert.ok(s.earnings.every((l) => Number.isFinite(l.amount)))
 }
 
