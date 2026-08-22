@@ -24,5 +24,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Node scripts, not app code — they import node:assert and run under
+  // `node --experimental-strip-types`, not through Vite.
+  "exclude": ["src/**/*.test.ts"]
 }

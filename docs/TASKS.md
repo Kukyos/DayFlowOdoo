@@ -11,7 +11,8 @@ Do not start a tier until the one above is genuinely done. Six excellent screens
 beat thirteen hollow ones — but only if the six include something beyond CRUD.
 
 **Markers:** ☐ not started · ◐ partly done, with what remains stated in the row ·
-☑ done and verified. Never tick ☑ for something only verified in theory.
+☑ done and verified · ✖ dropped, with the reason in the row. Never tick ☑ for
+something only verified in theory.
 
 ---
 
@@ -46,13 +47,13 @@ is the sign-up → landing path working end to end.
 |---|---|---|---|
 | 2.1 | `DESIGN.md` tokens — filled from the switch-lit reference | Armaan | ☑ |
 | 2.2 | Tokens live in `src/index.css`; light **and** dark defined for every one | Armaan | ☑ |
-| 2.3 | Theme toggle — mechanism done in `lib/theme.ts`, persists, defaults to system, no flash on load. **Still to move into the real header** when 2.6 builds it | Armaan | ◐ |
+| 2.3 | Theme toggle — in the auth header and the app shell, persists, defaults to system, no flash on load | Armaan | ☑ |
 | 2.4 | Anton + Instrument Serif + Inter loading, **verified in devtools** — not just written in the doc | Armaan | ☑ |
-| 2.5 | UI primitives: Button, Input, Select, Card, Badge, Avatar, Table, Modal, Tabs, Toast, EmptyState, Spinner | Armaan | ☐ |
+| 2.5 | UI primitives in `components/ui/index.tsx`: Button, Input, Select, Textarea, Field, Card, Avatar, presence/status/attendance chips, Table, Modal, Tabs, EmptyState, ErrorState, Spinner, PageHeader, StatCard | Armaan | ☑ |
 | 2.6 | App shell: header with logo, nav (Employees / Attendance / Time Off), Check In-Out control, avatar dropdown → My Profile / Log Out | Armaan | ☐ |
-| 2.7 | Landing page. The only screen judged before login | Pooja | ☐ |
-| 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
-| 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
+| 2.7 | ~~Landing page~~ — **dropped by the team.** Dayflow is an internal tool nobody reaches without an account, so a marketing page is a screen neither a judge nor a user opens. `/` redirects to `/signin` | — | ✖ |
+| 2.8 | Sign In page — email and password, error states, both themes. **Merged to `main`** | Armaan | ☑ |
+| 2.9 | Sign Up page — company registration only, per `AUTH.md`. Logo upload lands with Storage in Stage 4. **Merged to `main`** | Armaan | ☑ |
 | 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☐ |
 | 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ☐ |
 | 2.12 | Optional simple `generate_login_id()` for HR display only — no counter table or login-ID authentication | Praneet | ☐ |
@@ -65,7 +66,7 @@ is the sign-up → landing path working end to end.
 | 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ☐ |
 | 2.18 | Server-side employee invite flow; verify the browser never receives a service-role key | Praneet + Armaan | ☐ |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
-| 2.20 | Delete `pages/Scaffold.tsx` once every route has a real page | Armaan | ☐ |
+| 2.20 | `pages/Scaffold.tsx` deleted. `pages/NotBuiltYet.tsx` replaces it — delete that once every route on `main` has a real page | Armaan | ◐ |
 
 **Exit criteria.** Landing and sign-in look right in a real browser in both
 themes; tokens are in `DESIGN.md` *and* live in the app; schema, RLS, types and

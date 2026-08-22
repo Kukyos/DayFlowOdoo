@@ -30,6 +30,12 @@
   --danger: #ff5c4d;
   --danger-ink: #c62f1f;
 
+  /* Auth-only. The reference's sign-in page is a full-bleed colour field, which
+     the rest of the system forbids — see DESIGN.md 2.5. Scoped to its own token
+     so it cannot leak into the app, where lime and cornflower mean a presence. */
+  --auth-panel: #bed4fb;
+  --auth-panel-ink: #06152e;
+
   --font-display: "Anton", "Arial Narrow", sans-serif;
   --font-heading: "Instrument Serif", Georgia, serif;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -48,6 +54,12 @@
   --text-muted: #a3a39b;
   --neutral-fill: #26261f;
   --danger-ink: #ff8577;
+
+  /* Cornflower at half the viewport beside a near-black canvas is glare, not
+     contrast. Dark keeps the hue and drops the value; the illustration inherits
+     currentColor so it inverts with it. */
+  --auth-panel: #16233c;
+  --auth-panel-ink: #dbe6fa;
 
   /* Accents and status fills are deliberately unchanged: they are light,
      high-chroma colours carrying black text, so they work on either canvas.
@@ -77,6 +89,8 @@
   --color-info: var(--info);
   --color-danger: var(--danger);
   --color-danger-ink: var(--danger-ink);
+  --color-auth-panel: var(--auth-panel);
+  --color-auth-panel-ink: var(--auth-panel-ink);
 
   --font-display: var(--font-display);
   --font-heading: var(--font-heading);
