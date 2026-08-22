@@ -76,7 +76,7 @@ export function AuthLayout({
             a tall form pushes main past the viewport regardless of h-screen
             on the root. overflow-y-auto is the fallback for a viewport too
             short to fit the form at all; on ordinary screens it never engages. */}
-        <div className="mx-auto flex w-full max-w-[1400px] min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-4 py-6 sm:px-5 sm:py-8 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12 lg:py-6">
+        <div className="mx-auto flex w-full max-w-[1400px] min-h-0 flex-1 flex-col items-center gap-6 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12 lg:py-3">
           <div className="hidden w-full max-w-[480px] shrink justify-center lg:flex" aria-hidden="true">
             <LoginIllustration />
           </div>
@@ -88,11 +88,11 @@ export function AuthLayout({
             Two pills plus the logo measure ~391px at the base breakpoint —
             wider than a 360-390px phone — so it stacks below `sm` and only
             sits in one row once there is room (640px+) for both of them. */}
-        <div className="pointer-events-none flex shrink-0 flex-col items-center gap-3 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12 lg:pb-6">
+        <div className="pointer-events-none flex shrink-0 flex-col items-center gap-3 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12 lg:pb-3">
           <img
             src={dayflowLogo}
             alt=""
-            className="auth-brand-logo h-11 w-auto shrink-0 select-none opacity-90 sm:h-14 lg:h-[72px]"
+            className="auth-brand-logo h-11 w-auto shrink-0 select-none opacity-90 sm:h-14 lg:h-12"
             aria-hidden="true"
           />
           <div className="pointer-events-auto flex items-center gap-2">
@@ -253,11 +253,11 @@ export function AuthCard({
 }) {
   return (
     <>
-      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-6 lg:p-6">
-        <h1 className="t-label mb-4 text-center">{title}</h1>
+      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-6 lg:px-6 lg:py-3">
+        <h1 className="t-label mb-3 text-center">{title}</h1>
         {children}
       </div>
-      {footer && <div className="mt-5 text-center">{footer}</div>}
+      {footer && <div className="mt-3 text-center">{footer}</div>}
     </>
   )
 }

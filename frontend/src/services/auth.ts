@@ -74,6 +74,7 @@ export async function signUpCompany(input: SignUpCompanyInput): Promise<SignUpCo
         company_name: input.companyName.trim(),
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
+        mobile: input.mobile?.trim() || undefined,
       },
     },
   })
@@ -103,9 +104,15 @@ export function onAuthChange(callback: (event: AuthChangeEvent, session: Session
 }
 
 export async function currentEmployee(): Promise<Employee> {
+  const { data: userData, error: userError } = await supabaseClient().auth.getUser()
+  if (userError || !userData.user) {
+    throw new ServiceError('Your signed-in account could not be verified.', userError)
+  }
+
   const { data, error } = await supabaseClient()
     .from('employees')
     .select('*')
+    .eq('id', userData.user.id)
     .single()
 
   if (error || !data) {

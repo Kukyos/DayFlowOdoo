@@ -6,7 +6,12 @@ import { formatTime } from '@/lib/dates'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import { checkIn, checkOut, todayStatus } from '@/services/attendance'
 import { signOut } from '@/services/auth'
-import { getCompany, updateCompany, uploadCompanyLogo } from '@/services/company'
+import {
+  deleteCompanyLogo,
+  getCompany,
+  updateCompany,
+  uploadCompanyLogo,
+} from '@/services/company'
 import type { Company } from '@/types/models'
 import { fullName } from '@/types/models'
 
@@ -69,9 +74,18 @@ export function AppShell() {
               avatarUrl={employee.avatar_url}
               isPrivileged={isPrivileged}
               onCompanyLogo={async (file) => {
-                const logoUrl = await uploadCompanyLogo(file)
-                const updated = await updateCompany({ logo_url: logoUrl })
-                setCompany(updated)
+                let logoUrl: string | null = null
+                try {
+                  logoUrl = await uploadCompanyLogo(file)
+                  const updated = await updateCompany({ logo_url: logoUrl })
+                  if (company?.logo_url) {
+                    void deleteCompanyLogo(company.logo_url).catch(() => undefined)
+                  }
+                  setCompany(updated)
+                } catch (cause) {
+                  if (logoUrl) void deleteCompanyLogo(logoUrl).catch(() => undefined)
+                  throw cause
+                }
               }}
             />
           </div>
@@ -95,7 +109,7 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
     checkedIn: boolean
     checkIn: string | null
     checkOut: string | null
-  } | null>(null)
+  }>({ checkedIn: false, checkIn: null, checkOut: null })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -109,7 +123,9 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
   }, [])
 
   useEffect(() => {
-    void load()
+    void load().catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : 'Could not load today\'s attendance.')
+    })
   }, [load])
 
   async function act() {
@@ -126,8 +142,6 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
       setBusy(false)
     }
   }
-
-  if (!state) return null
 
   const done = Boolean(state.checkOut)
 

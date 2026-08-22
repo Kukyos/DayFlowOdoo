@@ -57,7 +57,7 @@ is the sign-up → landing path working end to end.
 | 2.9a | Backend Milestone 0 — linked/local migration parity, auth/salary contract decisions, and RLS test matrix locked | Praneet | ☑ linked and local history both at `20260822043456`; see `RLS_TEST_MATRIX.md` |
 | 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☑ all four MVP tables and guarded operations are migrated locally and remotely |
 | 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ directory/profile/attendance/leave boundaries covered by rollback tests; linked two-user browser verification remains |
-| 2.12 | Optional generated login ID for HR display only — no counter table or login-ID authentication | Praneet | ☑ generated server-side during employee creation |
+| 2.12 | Use work email as the only sign-in identifier — no generated login ID or login-ID authentication | Praneet | ☑ employee creation returns only a temporary password |
 | 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☑ `enforce_employee_update_boundary` trigger |
 | 2.12b | Company-scoped directory-safe RPC with only documented safe columns | Praneet | ☑ `list_employee_directory()` |
 | 2.12c | Leave-review transaction: set reviewer/status and decrement the matching leave balance exactly once | Praneet | ☑ guarded `review_leave_request()` with rollback-tested one-time balance movement |
@@ -96,7 +96,7 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ◐ guarded live RPC wired; signed-in Admin/HR browser verification remains |
 | 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ live balances/request/cancel and private attachment upload wired; signed-in browser verification remains |
 | 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ live company reads and approve/reject wired; comment-entry UI and signed-in browser verification remain |
-| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Show the temporary password once; optional login ID, balances, and wage live on the employee row | Athira | ◐ live Edge Function and one-time credential result wired; linked signed-in browser verification remains |
+| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Use work email for sign-in and show the temporary password once; balances and wage live on the employee row | Athira | ◐ live Edge Function and one-time credential result wired; linked signed-in browser verification remains |
 | 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ guarded single-RPC live summary wired and two-role API tested; visible browser verification remains |
 | 3.12 | **Change password** — normal account setting and mandatory first-login flow for HR-created employees | Athira | ◐ page, Auth update, database trigger, and route enforcement implemented; live forced-flow browser verification remains |
 

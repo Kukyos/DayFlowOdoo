@@ -91,7 +91,7 @@ export function Dashboard() {
           <Card className="bg-surface/85 backdrop-blur-[1px]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="t-h3">Waiting on you</h2>
-              <Link to="/time-off">
+              <Link to="/time-off/approvals">
                 <Button size="sm">Review all</Button>
               </Link>
             </div>

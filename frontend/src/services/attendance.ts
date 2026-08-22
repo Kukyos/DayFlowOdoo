@@ -13,9 +13,14 @@ function attendanceStatus(value: string): AttendanceStatus {
 }
 
 export async function todayStatus() {
-  const { data, error } = await supabaseClient()
+  const client = supabaseClient()
+  const { data: userData, error: userError } = await client.auth.getUser()
+  if (userError || !userData.user) throw new ServiceError('Sign in to view today\'s attendance.')
+
+  const { data, error } = await client
     .from('attendance')
     .select('*')
+    .eq('employee_id', userData.user.id)
     .eq('work_date', today())
     .maybeSingle()
   if (error) throw new ServiceError(error.message, error)

@@ -72,7 +72,7 @@ type SignUpCompanyResult = {
 |---|---|---|
 | `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
 | `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
-| `createEmployee(input)` | `{ employee, loginId, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the temporary password is returned once and never persisted in plaintext |
+| `createEmployee(input)` | `{ employee, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the employee signs in with `employee.work_email`, and the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
 | `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
 | `uploadAvatar(file)` | `string` | `avatars` bucket |
