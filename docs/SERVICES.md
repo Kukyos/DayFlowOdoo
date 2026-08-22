@@ -44,7 +44,7 @@ type SignUpCompanyResult = {
 | `signOut()` | `void` | |
 | `getSession()` | `Session \| null` | |
 | `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
-| `changePassword(newPassword)` | `void` | Updates the Auth password and clears `must_change_password` through a protected operation |
+| `changePassword(newPassword)` | `void` | Updates the Auth password; the private Auth trigger clears `must_change_password` |
 | `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
 
 ## `company.ts`

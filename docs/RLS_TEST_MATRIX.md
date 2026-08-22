@@ -81,3 +81,14 @@ For each implemented resource, record:
 
 Milestone 0 parity was verified on 2026-08-22: repository and linked project both
 contain only migration `20260822043456_create_auth_company_foundation.sql`.
+
+Milestone 1 was verified on 2026-08-22: the password-flag migration applied
+locally and remotely; the private trigger was not executable by `anon` or
+`authenticated`; a disposable local account passed sign-in, own-row RLS read,
+Auth password update, flag clearing, and sign-out; cleanup left no temporary
+Auth user or company. A signed-out browser request to `/dashboard` redirected to
+`/signin` with no console errors. Signed-in browser verification against the
+shared project remains pending until a private dev-account credential is used.
+Remote security advisors also confirmed that the tracked grant-hardening
+migration removed browser execution of `public.rls_auto_enable()`. The only
+remaining warning is the Dashboard-level leaked-password-protection setting.

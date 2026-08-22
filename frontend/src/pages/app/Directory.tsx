@@ -12,7 +12,7 @@ import {
   Select,
   Spinner,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { departments, listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'

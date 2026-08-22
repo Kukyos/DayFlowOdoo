@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import * as fx from '@/fixtures'
 import { today } from '@/lib/dates'
 import { formatRupees, MINIMUM_WAGE, computeSalary } from '@/lib/salary'

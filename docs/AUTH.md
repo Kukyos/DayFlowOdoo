@@ -40,12 +40,16 @@ and first admin atomically, but returns no session. The page shows a check-email
 state; after following the confirmation link, the user signs in normally and is
 redirected to `/dashboard`. Passwords must contain at least eight characters.
 
+**Dashboard action remaining:** enable Auth leaked-password protection. The
+linked project's security advisor still reports it disabled; this is a hosted
+Auth setting rather than a repository migration.
+
 HR-created employees are created with confirmed email and
 `must_change_password = true`. Their first successful sign-in is restricted to
-the password-change screen. After `auth.updateUser()` succeeds, a protected
-operation clears the flag; clients cannot clear it with a direct employee-row
-update. The generated password is shown only to the creating Admin/HR and is not
-sent by email in the MVP.
+the password-change screen. A private database trigger clears the flag only
+when Supabase Auth changes that user's actual password hash; clients cannot
+clear it with a direct employee-row update. The generated password is shown
+only to the creating Admin/HR and is not sent by email in the MVP.
 
 For local development, confirmation links return to
 `http://localhost:5173/signin`. Hosted Vercel URLs must be added to the Supabase
@@ -60,14 +64,18 @@ Auth redirect allow-list before testing a deployed preview.
   status: 'loading' | 'authenticated' | 'unauthenticated',
   session: Session | null,
   employee: Employee | null,
+  employeeError: string | null,
   isPrivileged: boolean,
-  mustChangePassword: boolean
+  mustChangePassword: boolean,
+  refreshEmployee: () => Promise<Employee | null>
 }
 ```
 
 It starts at `loading` while Supabase restores the persisted session. Do not
 treat loading as unauthenticated. The employee record is fetched after the
-session, so callers handle `employee === null` briefly.
+session, so callers handle `employee === null` briefly. If the session is valid
+but the employee row cannot be loaded, guards show `employeeError` with retry
+and logout actions instead of treating the user as signed out.
 
 ## Routes
 

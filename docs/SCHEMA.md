@@ -11,10 +11,11 @@ companies → employees
 ```
 
 **Implementation status (2026-08-22):** the repository and linked project both
-have only `20260822043456_create_auth_company_foundation.sql`. It creates the
-company/employee foundation through `is_active`; `must_change_password`,
-attendance, leave, directory access, and later-tier tables remain future tracked
-migrations.
+have the auth/company foundation and
+`20260822061245_add_password_change_requirement.sql`. Companies, employees, and
+the forced-password-change flag are live. The linked project also has the
+tracked `20260822063332_harden_rls_auto_enable_grants.sql`; attendance, leave,
+directory access, and later-tier tables remain future tracked migrations.
 
 ## `companies`
 
@@ -161,8 +162,9 @@ the browser; never expose a service-role key.
 An employee update policy must not allow changing `role`, `company_id`,
 `monthly_wage`, leave balances, `is_active`, or another employee's identity.
 Use a trigger or a dedicated update function to enforce that column boundary.
-It must also prevent employees from clearing `must_change_password` directly;
-only the protected password-change completion operation may do that.
+It must also prevent employees from clearing `must_change_password` directly.
+A private trigger clears the flag only when Supabase Auth updates that user's
+actual password hash.
 Leave approval should be a protected transactional function that validates the
 reviewer and request company, changes status, stamps `reviewed_by`, and adjusts
 the appropriate balance exactly once.

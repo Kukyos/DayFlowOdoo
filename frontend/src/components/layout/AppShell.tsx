@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Avatar, Button, cx } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { formatTime } from '@/lib/dates'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import { checkIn, checkOut, todayStatus } from '@/services/attendance'
@@ -16,24 +16,8 @@ const NAV = [
 ]
 
 export function AppShell() {
-  const { employee, status, isPrivileged, viewAs, setViewAs, refresh } = useSession()
-
-  if (status === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-bg text-text-muted">
-        <span className="t-caption">Loading…</span>
-      </div>
-    )
-  }
-  if (!employee) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <Link to="/signin" className="t-caption underline">
-          Sign in to continue
-        </Link>
-      </div>
-    )
-  }
+  const { employee, isPrivileged, refreshEmployee } = useSession()
+  if (!employee) return null
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -63,8 +47,7 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <RoleSwitch viewAs={viewAs} setViewAs={setViewAs} />
-            <CheckInControl employeeId={employee.id} onChange={refresh} />
+            <CheckInControl employeeId={employee.id} onChange={() => { void refreshEmployee() }} />
             <AvatarMenu
               name={fullName(employee)}
               role={isPrivileged ? 'Admin / HR' : 'Employee'}
@@ -76,40 +59,6 @@ export function AppShell() {
       <main className="mx-auto max-w-[1440px] px-5 py-10 lg:px-8">
         <Outlet />
       </main>
-    </div>
-  )
-}
-
-/**
- * Demo-only. The real app derives the role from the signed-in employee row;
- * this exists so both halves of the product can be shown without two accounts.
- */
-function RoleSwitch({
-  viewAs,
-  setViewAs,
-}: {
-  viewAs: 'admin' | 'employee'
-  setViewAs: (v: 'admin' | 'employee') => void
-}) {
-  return (
-    <div
-      className="hidden items-center rounded-control border border-border-soft p-0.5 sm:flex"
-      title="Demo only — switches which seeded account you are viewing as"
-    >
-      {(['admin', 'employee'] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => setViewAs(v)}
-          aria-pressed={viewAs === v}
-          className={cx(
-            'rounded-[4px] px-2.5 py-1 t-label transition-colors',
-            viewAs === v ? 'bg-text text-bg' : 'text-text-muted hover:text-text',
-          )}
-        >
-          {v}
-        </button>
-      ))}
     </div>
   )
 }
@@ -186,6 +135,7 @@ function AvatarMenu({ name, role }: { name: string; role: string }) {
   const navigate = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const [theme, setThemeState] = useState<Theme>(currentTheme)
+  const [accountError, setAccountError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -226,6 +176,9 @@ function AvatarMenu({ name, role }: { name: string; role: string }) {
           <MenuItem onClick={() => { setOpen(false); navigate('/profile') }}>
             My Profile
           </MenuItem>
+          <MenuItem onClick={() => { setOpen(false); navigate('/change-password') }}>
+            Change password
+          </MenuItem>
           <MenuItem
             onClick={() => {
               setThemeState(toggleTheme())
@@ -234,14 +187,27 @@ function AvatarMenu({ name, role }: { name: string; role: string }) {
             {theme === 'dark' ? 'Light theme' : 'Dark theme'}
           </MenuItem>
           <MenuItem
-            onClick={async () => {
-              setOpen(false)
-              await signOut()
-              navigate('/signin', { replace: true })
+            onClick={() => {
+              setAccountError(null)
+              void signOut()
+                .then(() => {
+                  setOpen(false)
+                  navigate('/signin', { replace: true })
+                })
+                .catch((error: unknown) => {
+                  setAccountError(
+                    error instanceof Error ? error.message : 'Could not log out.',
+                  )
+                })
             }}
           >
             Log Out
           </MenuItem>
+          {accountError && (
+            <p role="alert" className="px-3 py-2 t-label text-danger-ink">
+              {accountError}
+            </p>
+          )}
         </div>
       )}
     </div>

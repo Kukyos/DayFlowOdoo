@@ -14,7 +14,7 @@ import {
   Textarea,
   cx,
 } from '@/components/ui'
-import { useSession } from '@/context/DemoSession'
+import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
@@ -34,7 +34,7 @@ import type { Employee } from '@/types/models'
  */
 export function EmployeeProfile({ self = false }: { self?: boolean }) {
   const { id } = useParams()
-  const { employee: me, isPrivileged, refresh } = useSession()
+  const { employee: me, isPrivileged, refreshEmployee } = useSession()
   const targetId = self ? me?.id : id
 
   const { status, data, error, reload } = useAsync(
@@ -55,7 +55,7 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
       isPrivileged={isPrivileged}
       onSaved={() => {
         reload()
-        refresh()
+        void refreshEmployee()
       }}
     />
   )
