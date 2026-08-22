@@ -105,6 +105,13 @@
 /* Type scale — DESIGN.md §3. Utilities, not component styles, so a page never
    invents a size. If a size is missing here the scale is wrong; fix the doc. */
 @layer components {
+  .auth-brand-logo {
+    filter: none;
+  }
+  :root[data-theme="dark"] .auth-brand-logo {
+    filter: invert(1);
+  }
+
   .t-display {
     font-family: var(--font-display);
     font-size: 64px;
