@@ -27,11 +27,11 @@ export function AuthLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
-      <header className="flex items-center justify-between border-b border-border px-5 py-3 sm:px-8">
+      <header className="flex items-center justify-between border-b border-border px-3 py-3 sm:px-8">
         <Link to="/" className="t-h3 font-display tracking-normal" aria-label="Dayflow home">
           Dayflow
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button
             size="sm"
             variant="ghost"
@@ -47,11 +47,11 @@ export function AuthLayout({
                   Sign up
                 </Button>
               </Link>
-              <span className="t-caption text-text-muted">Log in</span>
+              <span className="hidden t-caption text-text-muted sm:inline">Log in</span>
             </>
           ) : (
             <>
-              <span className="t-caption text-text-muted">Sign up</span>
+              <span className="hidden t-caption text-text-muted sm:inline">Sign up</span>
               <Link to="/signin">
                 <Button size="sm" variant="inverted">
                   Log in
@@ -63,26 +63,23 @@ export function AuthLayout({
       </header>
 
       <main className="relative flex flex-1 flex-col bg-auth-panel text-auth-panel-ink">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col items-center gap-10 px-5 py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col items-center gap-8 px-4 py-8 sm:px-5 sm:py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-12">
           <div className="hidden w-full max-w-[520px] lg:block" aria-hidden="true">
             <WorkweekMark />
           </div>
           <div className="w-full max-w-[440px]">{children}</div>
         </div>
 
-        {/* Legal links, reachable at every width. Below lg they sit under the
-            form since the brand-mark furniture is hidden there; at lg they move
-            into that furniture row so nothing on the phone layout duplicates. */}
-        <div className="flex items-center justify-center gap-2 pb-8 lg:hidden">
-          <LegalLinkButton onClick={() => setPrivacyOpen(true)}>Privacy Policy</LegalLinkButton>
-          <LegalLinkButton onClick={() => setTermsOpen(true)}>Terms &amp; Conditions</LegalLinkButton>
-        </div>
-
-        <div className="pointer-events-none hidden items-end justify-between px-12 pb-8 lg:flex">
+        {/* Bottom furniture stays visible and compact on phones (Pooja) and
+            carries the real Terms/Privacy modals at every width (Athira).
+            Two pills plus the logo measure ~391px at the base breakpoint —
+            wider than a 360-390px phone — so it stacks below `sm` and only
+            sits in one row once there is room (640px+) for both of them. */}
+        <div className="pointer-events-none flex flex-col items-center gap-3 px-4 pb-6 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12 lg:pb-8">
           <img
             src={dayflowLogo}
             alt=""
-            className="auth-brand-logo h-[72px] w-auto select-none opacity-90"
+            className="auth-brand-logo h-11 w-auto shrink-0 select-none opacity-90 sm:h-14 lg:h-[72px]"
             aria-hidden="true"
           />
           <div className="pointer-events-auto flex items-center gap-2">
@@ -114,7 +111,7 @@ function LegalLinkButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-current px-4 py-2 t-caption transition-colors hover:bg-auth-panel-ink/10"
+      className="rounded-full border border-current px-3 py-2 t-caption transition-colors hover:bg-auth-panel-ink/10 sm:px-4"
     >
       {children}
     </button>
@@ -243,7 +240,7 @@ export function AuthCard({
 }) {
   return (
     <>
-      <div className="rounded-card border border-border bg-surface-raised p-6 text-text sm:p-8">
+      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-8">
         <h1 className="t-label mb-6 text-center">{title}</h1>
         {children}
       </div>
