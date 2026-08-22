@@ -18,14 +18,21 @@ import boyGreeting from '@/assets/employee-boy-greeting.png'
 import dashboardIllustration from '@/assets/dashboard-support-illustration.png'
 import girlGreeting from '@/assets/employee-girl-greeting.png'
 
-const GIRL_GREETING_EMPLOYEE_IDS = new Set([
-  'e-01',
-  'e-03',
-  'e-05',
-  'e-07',
-  'e-09',
-  'e-11',
-])
+/**
+ * Picks a greeting mascot per employee. Athira/Pooja's original picked from a
+ * hardcoded set of fixture ids ('e-01', 'e-03', ...) — meaningless now that
+ * employee.id is a real Supabase UUID, so every real user would have fallen
+ * through to the same image. A stable hash of the real id keeps the intent
+ * (some visual variety across people) without depending on fixture data.
+ */
+function greetingImageFor(employeeId: string | undefined): string {
+  if (!employeeId) return boyGreeting
+  let hash = 0
+  for (let i = 0; i < employeeId.length; i += 1) {
+    hash = (hash * 31 + employeeId.charCodeAt(i)) | 0
+  }
+  return hash % 2 === 0 ? girlGreeting : boyGreeting
+}
 
 export function Dashboard() {
   const { employee, isPrivileged } = useSession()
@@ -63,11 +70,7 @@ export function Dashboard() {
           </p>
         </div>
         <img
-          src={
-            employee && GIRL_GREETING_EMPLOYEE_IDS.has(employee.id)
-              ? girlGreeting
-              : boyGreeting
-          }
+          src={greetingImageFor(employee?.id)}
           alt=""
           aria-hidden="true"
           className="h-28 w-28 shrink-0 object-contain sm:h-32 sm:w-32"
