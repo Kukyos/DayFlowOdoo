@@ -98,7 +98,7 @@ export function AuthCard({
 }) {
   return (
     <>
-      <div className="rounded-card border border-border bg-surface-raised p-6 text-text sm:p-8">
+      <div className="rounded-card border border-border bg-surface-raised p-5 text-text sm:p-8">
         <h1 className="t-label mb-6 text-center">{title}</h1>
         {children}
       </div>
