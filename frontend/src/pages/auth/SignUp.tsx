@@ -105,7 +105,7 @@ export function SignUp() {
             <Input
               id="companyName"
               autoFocus
-              placeholder="Odoo India"
+              placeholder="Karunya"
               value={form.companyName}
               onChange={set('companyName')}
               onBlur={blur('companyName')}
