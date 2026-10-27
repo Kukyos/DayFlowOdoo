@@ -5,9 +5,13 @@ import type { SQLInputValue } from 'node:sqlite'
 
 const backendRoot = path.resolve(import.meta.dirname, '..')
 
-/** Overridable so tests run against a throwaway database and upload folder. */
-export const DB_PATH = process.env.DAYFLOW_DB ?? path.join(backendRoot, 'data', 'dayflow.db')
-export const UPLOADS_DIR = process.env.DAYFLOW_UPLOADS ?? path.join(backendRoot, 'uploads')
+/**
+ * Overridable so tests run against a throwaway database and upload folder.
+ * On Vercel only /tmp is writable, so the hosted demo keeps both there.
+ */
+const dataRoot = process.env.VERCEL ? '/tmp/dayflow' : backendRoot
+export const DB_PATH = process.env.DAYFLOW_DB ?? path.join(dataRoot, 'data', 'dayflow.db')
+export const UPLOADS_DIR = process.env.DAYFLOW_UPLOADS ?? path.join(dataRoot, 'uploads')
 
 export type Row = Record<string, SQLInputValue>
 export type Params = SQLInputValue[]

@@ -33,6 +33,7 @@ something only verified in theory.
 | 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☑ |
 | 1.6 | Vercel project linked; production tracks `main`; branch previews on. **Leave Root Directory as the repo root** — see the note below | Armaan | ☑ https://dayflow-odoo-sand.vercel.app/ |
 | 1.6a | **Verify the SPA rewrite on the deployed preview**: open a deep link such as `/employees/x` and hard-refresh. 200, not 404. This is the only test that exercises `vercel.json`, and it closes 1.4 | Armaan | ☑ `/employees/abc123`, `/attendance`, `/time-off` all 200 and serve the app HTML |
+| 1.6b | Live link serves the `dbms` branch with its API: `scripts/build-vercel.mjs` emits the SPA plus the Hono + SQLite API as one Vercel function (`backend/src/vercel.ts`). The hosted database lives in `/tmp` and reseeds on each cold start, so demo edits do not persist | Armaan | ☑ bundled function signs in and serves session and dashboard locally |
 | 1.7 | Local backend runs with `npm run dev`; no keys needed | Praneet | ☑ |
 | 1.8 | Each builder copies `docs/BUILD_RULES.md` into a local, gitignored `CLAUDE.md` | all | ☐ |
 
