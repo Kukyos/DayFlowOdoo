@@ -33,8 +33,8 @@ import type { DirectoryEmployee, Employee } from '@/types/models'
  * admin looking at anybody.
  *
  * What separates them is not a prop — it is what the service returns. A
- * coworker's row arrives with the private and salary columns already null,
- * because that is what RLS will do. The tabs are built from what is present, so
+ * coworker's profile arrives without the private and salary columns at all,
+ * because the API never sends them. The tabs are built from what is present, so
  * a restricted field cannot be rendered by accident.
  */
 export function EmployeeProfile({ self = false }: { self?: boolean }) {

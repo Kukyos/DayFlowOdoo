@@ -40,7 +40,7 @@ export function AddEmployee() {
     role: 'employee' as Role,
   })
 
-  // A guard is a courtesy; RLS is the boundary. This one exists so a
+  // A guard is a courtesy; the API is the boundary. This one exists so a
   // non-privileged user who types the URL gets an explanation rather than a
   // form that will fail on submit.
   if (!isPrivileged) {

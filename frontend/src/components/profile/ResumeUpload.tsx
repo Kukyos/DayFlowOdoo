@@ -6,9 +6,9 @@ import { Button, Modal, cx } from '@/components/ui'
  *
  * There is no `resume` column, storage bucket, or service function yet —
  * only `avatars` storage exists (docs/SCHEMA.md, docs/SERVICES.md). Adding
- * real persistence is a backend decision (a bucket, RLS, a documented
+ * real persistence is a backend decision (an upload bucket, access rules, a documented
  * service function), so this keeps the file in memory for the tab's
- * lifetime via `URL.createObjectURL` and never calls Supabase. Swapping in
+ * lifetime via `URL.createObjectURL` and never calls the API. Swapping in
  * a real upload later is a matter of replacing `processFile` below with a
  * service call — nothing here should have to change shape.
  */

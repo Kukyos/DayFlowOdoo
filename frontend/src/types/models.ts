@@ -1,11 +1,10 @@
 /**
  * Application-facing model types.
  *
- * Live table rows come from the generated `types/database.ts`. The remaining
- * view/derived types stay hand-written until their migrations exist.
+ * The row types mirror `backend/src/schema.sql` as the API serialises it:
+ * booleans are booleans and array columns are arrays. Keep them in step with
+ * the schema when a column changes.
  */
-
-import type { Tables } from './database'
 
 export type Role = 'admin' | 'hr' | 'employee'
 export type Presence = 'present' | 'leave' | 'absent'
@@ -16,23 +15,61 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected'
 export const isPrivileged = (role: Role | undefined | null): boolean =>
   role === 'admin' || role === 'hr'
 
-export type Company = Tables<'companies'>
-export type Notification = Tables<'notifications'>
+export type Company = {
+  id: string
+  name: string
+  logo_url: string | null
+  time_off_types: string[]
+  working_days: number[]
+  workday_start: string
+  workday_end: string
+  created_at: string
+}
+
+export type Notification = {
+  id: string
+  employee_id: string
+  type: string
+  title: string
+  message: string
+  leave_request_id: string | null
+  read_at: string | null
+  created_at: string
+}
 
 /**
- * The caller's own row, or an employee row an admin may read in full.
- *
- * The nullable-in-practice fields are typed `| null` because RLS returns them
- * as null for a coworker. A page must handle null rather than assume a value —
- * see `DirectoryEmployee` for the shape a coworker actually gets.
+ * The caller's own row, or an employee row an admin may read in full. A
+ * coworker never receives this shape — see `DirectoryEmployee` for what the
+ * API returns instead.
  */
-type EmployeeRow = Tables<'employees'>
-
-export type Employee = Omit<
-  EmployeeRow,
-  'role'
-> & {
+export type Employee = {
+  id: string
+  company_id: string
   role: Role
+  first_name: string
+  last_name: string
+  work_email: string
+  mobile: string | null
+  job_position: string | null
+  department: string | null
+  location: string | null
+  manager_id: string | null
+  date_of_joining: string | null
+  avatar_url: string | null
+  about: string | null
+  skills: string[] | null
+  date_of_birth: string | null
+  address: string | null
+  bank_account_number: string | null
+  ifsc_code: string | null
+  pan_no: string | null
+  uan_no: string | null
+  monthly_wage: number | null
+  paid_leave_balance: number
+  sick_leave_balance: number
+  is_active: boolean
+  must_change_password: boolean
+  created_at: string
 }
 
 /**

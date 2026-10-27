@@ -1,6 +1,6 @@
 import { daysInMonth, isWeekend, today, workHours } from '@/lib/dates'
-import type { AttendanceDay, AttendanceRow, AttendanceStatus } from '@/types/models'
-import { ServiceError, supabaseClient, unwrap } from './client'
+import type { AttendanceDay, AttendanceRow, AttendanceStatus, LeaveRequest } from '@/types/models'
+import { ServiceError, api, query } from './client'
 
 const isAttendanceStatus = (value: string): value is AttendanceStatus =>
   value === 'present' || value === 'half_day' || value === 'absent' || value === 'leave'
@@ -12,42 +12,33 @@ function attendanceStatus(value: string): AttendanceStatus {
   return value
 }
 
-export async function todayStatus() {
-  const client = supabaseClient()
-  const { data: userData, error: userError } = await client.auth.getUser()
-  if (userError || !userData.user) throw new ServiceError('Sign in to view today\'s attendance.')
+const toRow = (row: AttendanceRow): AttendanceRow => ({ ...row, status: attendanceStatus(row.status) })
 
-  const { data, error } = await client
-    .from('attendance')
-    .select('*')
-    .eq('employee_id', userData.user.id)
-    .eq('work_date', today())
-    .maybeSingle()
-  if (error) throw new ServiceError(error.message, error)
-  const row = data
-    ? ({ ...data, status: attendanceStatus(data.status) } satisfies AttendanceRow)
-    : null
+export async function todayStatus() {
+  const { row } = await api<{ row: AttendanceRow | null }>(
+    'GET',
+    '/attendance/today',
+    undefined,
+    'Could not load today\'s attendance.',
+  )
+  const today = row ? toRow(row) : null
   return {
-    checkedIn: Boolean(row?.check_in && !row.check_out),
-    row: row ? { ...row } : null,
+    checkedIn: Boolean(today?.check_in && !today.check_out),
+    row: today,
   }
 }
 
 /** One row per employee per day; the server derives identity and timestamps. */
 export async function checkIn(): Promise<AttendanceRow> {
-  const { data, error } = await supabaseClient().rpc('check_in')
-  const row = unwrap({ data, error }, 'Could not check you in.')
-  return { ...row, status: attendanceStatus(row.status) }
+  return toRow(await api<AttendanceRow>('POST', '/attendance/check-in', undefined, 'Could not check you in.'))
 }
 
 export async function checkOut(): Promise<AttendanceRow> {
-  const { data, error } = await supabaseClient().rpc('check_out')
-  const row = unwrap({ data, error }, 'Could not check you out.')
-  return { ...row, status: attendanceStatus(row.status) }
+  return toRow(await api<AttendanceRow>('POST', '/attendance/check-out', undefined, 'Could not check you out.'))
 }
 
 /**
- * Reads the caller's RLS-visible rows and fills missing calendar days. Approved
+ * Reads the employee's stored rows and fills missing calendar days. Approved
  * leave explains a working-day gap; any other gap is an absence.
  */
 export async function myAttendance(
@@ -64,43 +55,26 @@ export async function myAttendance(
 
   const firstDate = visibleDays[0]
   const lastDate = visibleDays[visibleDays.length - 1]
-  const client = supabaseClient()
-  const [attendanceResult, leaveResult, employeeResult] = await Promise.all([
-    client
-      .from('attendance')
-      .select('*')
-      .eq('employee_id', employeeId)
-      .gte('work_date', firstDate)
-      .lte('work_date', lastDate),
-    client
-      .from('leave_requests')
-      .select('start_date, end_date')
-      .eq('employee_id', employeeId)
-      .eq('status', 'approved')
-      .lte('start_date', lastDate)
-      .gte('end_date', firstDate),
-    client
-      .from('employees')
-      .select('first_name, last_name, avatar_url')
-      .eq('id', employeeId)
-      .maybeSingle(),
+  const range = { employeeId, from: firstDate, to: lastDate }
+  const [rows, leave, profile] = await Promise.all([
+    api<AttendanceRow[]>('GET', `/attendance${query(range)}`, undefined, 'Could not load your attendance.'),
+    api<LeaveRequest[]>(
+      'GET',
+      `/leave${query({ ...range, status: 'approved' })}`,
+      undefined,
+      'Could not load leave dates for attendance.',
+    ),
+    api<{ employee: { first_name: string; last_name: string; avatar_url: string | null } }>(
+      'GET',
+      `/employees/${encodeURIComponent(employeeId)}`,
+      undefined,
+      'Could not load your attendance profile.',
+    ),
   ])
 
-  if (attendanceResult.error) {
-    throw new ServiceError('Could not load your attendance.', attendanceResult.error)
-  }
-  if (leaveResult.error) {
-    throw new ServiceError('Could not load leave dates for attendance.', leaveResult.error)
-  }
-  if (employeeResult.error) {
-    throw new ServiceError('Could not load your attendance profile.', employeeResult.error)
-  }
-
-  const rowsByDate = new Map(attendanceResult.data.map((row) => [row.work_date, row]))
-  const employeeName = employeeResult.data
-    ? `${employeeResult.data.first_name} ${employeeResult.data.last_name}`
-    : 'You'
-  const avatarUrl = employeeResult.data?.avatar_url ?? null
+  const rowsByDate = new Map(rows.map((row) => [row.work_date, row]))
+  const employeeName = `${profile.employee.first_name} ${profile.employee.last_name}`
+  const avatarUrl = profile.employee.avatar_url
 
   return visibleDays
     .map((date): AttendanceDay => {
@@ -118,7 +92,7 @@ export async function myAttendance(
         }
       }
 
-      const onLeave = leaveResult.data.some(
+      const onLeave = leave.some(
         (request) => request.start_date <= date && request.end_date >= date,
       )
       return {
@@ -135,26 +109,18 @@ export async function myAttendance(
     .reverse()
 }
 
-/** Admin/HR-only company register, enforced by the guarded database RPC. */
+/** Admin/HR-only company register, enforced by the server. */
 export async function companyAttendance(
   date: string,
   opts: { search?: string } = {},
 ): Promise<AttendanceDay[]> {
-  const { data, error } = await supabaseClient().rpc('list_company_attendance', {
-    p_work_date: date,
-    p_search: opts.search?.trim() || undefined,
-  })
-  const rows = unwrap({ data, error }, 'Could not load company attendance.')
-  return rows.map((row) => ({
-    work_date: row.work_date,
-    employee_id: row.employee_id,
-    employee_name: row.employee_name,
-    avatar_url: row.avatar_url,
-    check_in: row.check_in,
-    check_out: row.check_out,
-    status: attendanceStatus(row.status),
-    work_hours: row.work_hours,
-  }))
+  const rows = await api<AttendanceDay[]>(
+    'GET',
+    `/attendance/company${query({ date, search: opts.search?.trim() })}`,
+    undefined,
+    'Could not load company attendance.',
+  )
+  return rows.map((row) => ({ ...row, status: attendanceStatus(row.status) }))
 }
 
 export async function attendanceSummary(employeeId: string, month: string) {

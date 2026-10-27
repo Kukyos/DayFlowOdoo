@@ -6,7 +6,7 @@ import type {
   LeaveStatus,
   LeaveType,
 } from '@/types/models'
-import { ServiceError, supabaseClient, unwrap } from './client'
+import { ServiceError, api } from './client'
 
 export type DashboardSummary = {
   attendance: { present: number; absent: number; halfDay: number; leave: number }
@@ -122,8 +122,8 @@ const array = <T>(value: unknown, label: string, map: (item: unknown) => T): T[]
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const { data, error } = await supabaseClient().rpc('get_dashboard_summary')
-  const root = object(unwrap({ data, error }, 'Could not load your dashboard.'), 'summary')
+  const data = await api<unknown>('GET', '/dashboard', undefined, 'Could not load your dashboard.')
+  const root = object(data, 'summary')
   const attendance = object(root.attendance, 'attendance summary')
   const balances = object(root.balances, 'leave balances')
   const today = object(root.today, 'today status')

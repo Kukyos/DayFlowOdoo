@@ -1,60 +1,51 @@
 # Auth
 
-The session and access contract for the four-table hackathon MVP.
+The session and access contract between the frontend and the local API.
 
 ## Registration and roles
 
-Public Sign Up is for a **new company only**. It creates one `companies` row and
-the first `employees` row with `role = 'admin'`. The database—not client-supplied
-metadata—sets that role.
+Public Sign Up is for a **new company only**. `POST /api/auth/signup` creates
+the user, one `companies` row, and the first `employees` row with
+`role = 'admin'` in a single transaction, then signs the new admin straight in.
+The server sets the role; the request cannot supply one. There is no email
+confirmation step.
 
-The sign-up request supplies `company_name`, `first_name`, `last_name`, and an
-optional `mobile` value as profile metadata. The auth service adds the internal
-`registration_type = 'company'` discriminator; callers never supply a role.
-After sign-in, Admin/HR can upload the company logo from the account menu; the
-public sign-up transaction itself does not attempt a pre-session upload.
+The sign-up form supplies `companyName`, `firstName`, `lastName`, `email`,
+`password`, and an optional `mobile`. After sign-in, Admin/HR can upload the
+company logo from the account menu.
 
-Employees never self-register. An Admin or HR user creates an employee through a
-server-side operation, which creates `auth.users` and the linked `employees` row
-and returns a cryptographically secure temporary password once. The frontend
-never receives a service-role key, and the temporary password is never stored in
-plaintext by the application. The authenticated `create-employee` Edge
-Function holds the server credential, checks the caller's live employee role,
-and removes the new Auth user if linking the employee row fails.
+Employees never self-register. An Admin or HR user creates an employee through
+`POST /api/employees`, which creates the user and the linked employee row and
+returns a random temporary password **once**. Only the password hash is stored.
 
 | role | access |
 |---|---|
 | `admin` | Full company access |
 | `hr` | Same privileged access for this MVP |
-| `employee` | Own full row, own attendance, own leave; directory-safe coworker data |
+| `employee` | Own full record, own attendance, own leave; directory-safe coworker data |
 
-`admin` and `hr` are privileged. SQL and TypeScript each centralize that test;
-components must not make their own role comparison.
+`admin` and `hr` are privileged. The API (`isPrivileged()` in
+`backend/src/auth.ts`) and the frontend (`isPrivileged()` in `types/models.ts`)
+each centralise that test; components must not make their own role comparison.
 
 ## Sign-in
 
-The required MVP path is **email + password**. Employee creation generates only
-a temporary password; the employee's work email is their sign-in identifier.
+Email + password. Passwords need at least eight characters with a letter and a
+number. A wrong password, an unknown email and a deactivated account all get the
+same "Those details do not match an account." answer.
 
-Email confirmation is required. Company sign-up creates the Auth user, company,
-and first admin atomically, but returns no session. The page shows a check-email
-state; after following the confirmation link, the user signs in normally and is
-redirected to `/dashboard`. Passwords must contain at least eight characters.
+HR-created employees start with `must_change_password = true`. Their first
+sign-in is restricted to the password-change screen. `POST /api/auth/password`
+replaces the password hash and clears the flag in one transaction; the flag
+cannot be cleared through a profile update. The temporary password is shown only
+to the creating Admin/HR and is not emailed.
 
-**Dashboard action remaining:** enable Auth leaked-password protection. The
-linked project's security advisor still reports it disabled; this is a hosted
-Auth setting rather than a repository migration.
+## Sessions
 
-HR-created employees are created with confirmed email and
-`must_change_password = true`. Their first successful sign-in is restricted to
-the password-change screen. A private database trigger clears the flag only
-when Supabase Auth changes that user's actual password hash; clients cannot
-clear it with a direct employee-row update. The generated password is shown
-only to the creating Admin/HR and is not sent by email in the MVP.
-
-For local development, confirmation links return to
-`http://localhost:5173/signin`. Hosted Vercel URLs must be added to the Supabase
-Auth redirect allow-list before testing a deployed preview.
+A session is a random 256-bit token in the `dayflow_session` cookie: HttpOnly,
+SameSite=Lax, 30 days. The token is looked up in the `sessions` table on every
+request. The browser reaches the API through Vite's `/api` proxy, so the cookie
+is first-party and needs no CORS setup.
 
 ## Session state
 
@@ -63,7 +54,7 @@ Auth redirect allow-list before testing a deployed preview.
 ```ts
 {
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  session: Session | null,
+  session: Session | null,          // { user: { id, email } }
   employee: Employee | null,
   employeeError: string | null,
   isPrivileged: boolean,
@@ -72,11 +63,16 @@ Auth redirect allow-list before testing a deployed preview.
 }
 ```
 
-It starts at `loading` while Supabase restores the persisted session. Do not
-treat loading as unauthenticated. The employee record is fetched after the
-session, so callers handle `employee === null` briefly. If the session is valid
-but the employee row cannot be loaded, guards show `employeeError` with retry
-and logout actions instead of treating the user as signed out.
+It starts at `loading` until `GET /api/auth/session` says whether the cookie is
+still valid. Do not treat loading as unauthenticated. The employee record is
+fetched after the session, so callers handle `employee === null` briefly. If the
+session is valid but the employee record cannot be loaded, guards show
+`employeeError` with retry and logout actions instead of treating the user as
+signed out.
+
+`services/auth.ts` notifies `AuthProvider` through `onAuthChange` with
+`INITIAL_SESSION`, `SIGNED_IN`, `SIGNED_OUT`, and `USER_UPDATED` (after a
+password change, so the cleared flag is reloaded).
 
 ## Routes
 
@@ -95,11 +91,11 @@ and logout actions instead of treating the user as signed out.
 
 Use `ProtectedRoute` and `AdminRoute`. An authenticated employee denied an
 Admin/HR route goes to `/dashboard`, not `/signin`. Route guards are a user
-experience measure; RLS is the security boundary.
+experience measure; the API is the security boundary.
 
 ## Dev accounts
 
-Seed and share privately one admin account and one employee account. Both use
-normal email/password authentication; no mock user or development bypass.
-Supabase persists a browser session, so the team can log in once and exercise
-the same RLS path during the demo.
+`backend/src/seed.ts` creates `odootestadmin@gmail.com` (Admin) and
+`odootestemployee@gmail.com` (Employee), plus four team accounts, all with the
+password `DayflowDemo7!`. The sign-in page's demo panel fills the first two.
+There is no mock user or development bypass.

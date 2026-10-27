@@ -1,37 +1,23 @@
 # Services
 
-**Owner: Praneet.** This is the frontend contract for the four-table MVP.
-Pages never import `supabase`; they call `frontend/src/services/`, which calls
-Supabase. If a function is not listed here, it does not exist yet.
+**Owner: Praneet.** This is the frontend contract. Pages never call the API
+directly; they call `frontend/src/services/`, which calls `/api`. If a function
+is not listed here, it does not exist yet.
 
 ## Rules
 
 - One file per domain: `auth.ts`, `company.ts`, `employees.ts`,
-  `attendance.ts`, `timeOff.ts`, and `salary.ts`.
-- Every function returns data or throws. `services/client.ts` owns the one
-  `unwrap()` helper.
-- Types come from generated `frontend/src/types/database.ts`, never hand-edited.
+  `attendance.ts`, `timeOff.ts`, `dashboard.ts`, `notifications.ts`.
+- Every function returns data or throws `ServiceError`. `services/client.ts`
+  owns the one `api()` helper; a failed request throws the server's `{ message }`.
+- Row types live in `frontend/src/types/models.ts` and follow `backend/src/schema.sql`.
 - Dates cross the boundary as `YYYY-MM-DD`; money is a number of rupees rounded
   to two decimals.
-- Demo data comes from `backend/supabase/seed.sql`; production services never
-  import local fixtures.
+- Demo data comes from `backend/src/seed.ts`; services never import fixtures.
 
-**Live through Milestone 9:** company reads/updates, directory/profile,
-employee creation/deactivation, attendance, time off, avatars, company logos,
-company configuration, in-app notifications,
-private leave attachments, and the guarded dashboard summary now call Supabase.
-The unused frontend fixture layer has been removed.
-
-## `dashboard.ts`
-
-| function | returns | notes |
-|---|---|---|
-| `getDashboardSummary()` | `DashboardSummary` | One authenticated RPC; own attendance/balances/recent requests for everyone, company aggregates and pending requests only for Admin/HR |
+Each service maps onto one or two API routes in `backend/src/routes/`.
 
 ## `auth.ts`
-
-`getSession()` is asynchronous in the Supabase implementation because the
-browser client restores its persisted session through `supabase.auth.getSession()`.
 
 ```ts
 type SignUpCompanyInput = {
@@ -43,83 +29,77 @@ type SignUpCompanyInput = {
   mobile?: string
 }
 
-type SignUpCompanyResult = {
-  userId: string
-  confirmationRequired: boolean
-}
+type SignUpCompanyResult = { userId: string }
 ```
 
-| function | returns | notes |
+| function | route | notes |
 |---|---|---|
-| `signUpCompany(input)` | `SignUpCompanyResult` | Public company registration. Creates the first admin, company, and employee record; email confirmation is required before a session exists |
-| `signIn(email, password)` | `Session` | Email and password only for the MVP |
-| `signOut()` | `void` | |
-| `getSession()` | `Session \| null` | |
-| `onAuthChange(cb)` | unsubscribe function | Used by `AuthProvider` |
-| `changePassword(newPassword)` | `void` | Updates the Auth password; the private Auth trigger clears `must_change_password` |
-| `currentEmployee()` | `Employee` | The signed-in caller's full employee row, including role |
+| `signUpCompany(input)` | `POST /auth/signup` | Creates the company and first admin, and signs in |
+| `signIn(email, password)` | `POST /auth/signin` | Returns `Session` |
+| `signOut()` | `POST /auth/signout` | |
+| `getSession()` | `GET /auth/session` | `Session \| null` |
+| `onAuthChange(cb)` | — | Used by `AuthProvider`; returns an unsubscribe function |
+| `changePassword(newPassword)` | `POST /auth/password` | Also clears `must_change_password` |
+| `currentEmployee()` | `GET /auth/me` | The caller's full employee record, including role |
 
 ## `company.ts`
 
-| function | returns | notes |
+| function | route | notes |
 |---|---|---|
-| `getCompany()` | `Company` | Header logo and name |
-| `updateCompany(patch)` | `Company` | Admin only |
-| `uploadCompanyLogo(file)` | `string` | `company-logos` bucket |
+| `getCompany()` | `GET /company` | Name, logo, time-off types, working schedule |
+| `updateCompany(patch)` | `PATCH /company` | Admin/HR only |
+| `uploadCompanyLogo(file)` | `POST /uploads/company-logos` | Returns the public URL |
+| `deleteCompanyLogo(url)` | `DELETE /uploads/company-logos` | |
 
 ## `employees.ts`
 
-| function | returns | notes |
+| function | route | notes |
 |---|---|---|
-| `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
-| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
-| `createEmployee(input)` | `{ employee, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the employee signs in with `employee.work_email`, and the temporary password is returned once and never persisted in plaintext |
-| `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
-| `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
-| `uploadAvatar(file)` | `string` | `avatars` bucket |
+| `listEmployees({ search?, department? })` | `GET /directory` | Directory-safe columns plus derived `presence`; filtered client-side |
+| `getEmployee(id)` | `GET /employees/:id` | Full record for self or Admin/HR; directory shape for a coworker |
+| `createEmployee(input)` | `POST /employees` | Admin/HR only; returns `{ employee, temporaryPassword }` once |
+| `updateEmployee(id, patch)` | `PATCH /employees/:id` | Self: safe profile/private fields. Admin/HR: also wage and job fields |
+| `deactivateEmployee(id)` | `POST /employees/:id/deactivate` | Admin/HR only; not yourself |
+| `uploadAvatar(file)` / `deleteAvatar(url)` | `POST` / `DELETE /uploads/avatars` | |
 
 ## `attendance.ts`
 
-| function | returns | notes |
+| function | route | notes |
 |---|---|---|
-| `checkIn()` | `AttendanceRow` | Calls the guarded server action for the caller; errors if one already exists |
-| `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
-| `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
-| `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
-| `companyAttendance(date, { search? })` | `AttendanceDay[]` | Calls the guarded Admin/HR-only company register RPC |
-| `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |
+| `checkIn()` / `checkOut()` | `POST /attendance/check-in`, `/check-out` | Caller's row for today; one of each per day |
+| `todayStatus()` | `GET /attendance/today` | `{ checkedIn, row }` for the header control |
+| `myAttendance(employeeId, month)` | `GET /attendance`, `GET /leave` | The month with gaps filled as leave or absent, and derived `work_hours` |
+| `companyAttendance(date, { search? })` | `GET /attendance/company` | Admin/HR only day register |
+| `attendanceSummary(employeeId, month)` | — | `{ present, absent, halfDay, leave }` from `myAttendance` |
 
 ## `timeOff.ts`
 
-| function | returns | notes |
+| function | route | notes |
 |---|---|---|
-| `myBalances()` | `{ paid: number; sick: number }` | Reads the caller's employee balances |
-| `myRequests()` | `LeaveRequest[]` | |
-| `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid` |
-| `cancelRequest(id)` | `void` | Own pending request only |
-| `uploadAttachment(file)` | `string` | Stores a private object path in `leave-documents`; optional for MVP |
-| `signedAttachmentUrl(path)` | `string` | Short-lived URL for an authorized employee or Admin/HR viewer |
-| `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
-| `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
-| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
+| `myBalances(employeeId)` | `GET /employees/:id` | `{ paid, sick }` |
+| `myRequests(employeeId)` | `GET /leave?employeeId=` | |
+| `createRequest(input)` | `POST /leave` | Server derives requester and weekday count, and checks the balance |
+| `cancelRequest(id)` | `DELETE /leave/:id` | Own pending request only |
+| `pendingRequests()` / `allRequests({ search?, status? })` | `GET /leave` | Admin/HR see the whole company |
+| `reviewRequest(id, status, comment?)` | `POST /leave/:id/review` | Admin/HR only; balance moves exactly once, notification written in the same transaction |
+| `uploadAttachment(file)` / `deleteAttachment(path)` | `POST` / `DELETE /uploads/leave-documents` | Stores a private object path |
+| `signedAttachmentUrl(path)` | — | `/api/files/leave-documents/<path>`; the server checks the session on open |
 
-## `company.ts`
+## `dashboard.ts`
 
-`getCompany()` returns the caller's company settings. `updateCompany()` lets
-Admin/HR update name, logo, time-off labels, working days, and workday start/end;
-RLS rejects employee writes.
+| function | route | notes |
+|---|---|---|
+| `getDashboardSummary()` | `GET /dashboard` | Own attendance/balances/recent requests for everyone; company aggregates and pending requests only for Admin/HR |
 
 ## `notifications.ts`
 
 `listNotifications()`, `unreadNotificationCount()`, `markNotificationRead()`,
-and `markAllNotificationsRead()` operate only on the caller's notification rows.
-The browser cannot create notifications or edit their content.
+and `markAllNotificationsRead()` (`/notifications`) operate only on the caller's
+rows. The browser cannot create notifications or edit their content.
 
 ## `salary.ts`
 
-`frontend/src/lib/salary.ts` is a pure calculation, not a Supabase service. It
-takes `monthlyWage` and returns Basic, HRA, Standard Allowance, Performance
-Bonus, LTA, Fixed Allowance, PF, Professional Tax, and net pay. Employee salary
-info reads their permitted `monthly_wage` from `employees`; Admin/HR edit that
-same column. There is no `payroll.ts`, payslip, or salary-component service in
-the MVP.
+`frontend/src/lib/salary.ts` is a pure calculation, not a service. It takes
+`monthlyWage` and returns Basic, HRA, Standard Allowance, Performance Bonus, LTA,
+Fixed Allowance, PF, Professional Tax, and net pay. Employees read their own
+`monthly_wage`; Admin/HR edit that same column.

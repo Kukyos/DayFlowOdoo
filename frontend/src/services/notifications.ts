@@ -1,38 +1,30 @@
 import type { Notification } from '@/types/models'
-import { supabaseClient, unwrap } from './client'
+import { api } from './client'
 
 export async function listNotifications(limit = 30): Promise<Notification[]> {
   const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 100)
-  const { data, error } = await supabaseClient()
-    .from('notifications')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(safeLimit)
-  return unwrap({ data, error }, 'Could not load notifications.')
+  return api<Notification[]>('GET', `/notifications?limit=${safeLimit}`, undefined, 'Could not load notifications.')
 }
 
 export async function unreadNotificationCount(): Promise<number> {
-  const { count, error } = await supabaseClient()
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .is('read_at', null)
-  return unwrap({ data: count ?? 0, error }, 'Could not count unread notifications.')
+  const { count } = await api<{ count: number }>(
+    'GET',
+    '/notifications/unread-count',
+    undefined,
+    'Could not count unread notifications.',
+  )
+  return count
 }
 
 export async function markNotificationRead(id: string): Promise<Notification> {
-  const { data, error } = await supabaseClient()
-    .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .single()
-  return unwrap({ data, error }, 'Could not mark that notification as read.')
+  return api<Notification>(
+    'POST',
+    `/notifications/${encodeURIComponent(id)}/read`,
+    undefined,
+    'Could not mark that notification as read.',
+  )
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  const { error } = await supabaseClient()
-    .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .is('read_at', null)
-  unwrap({ data: true, error }, 'Could not mark notifications as read.')
+  await api('POST', '/notifications/read-all', undefined, 'Could not mark notifications as read.')
 }

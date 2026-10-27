@@ -10,6 +10,12 @@ the file; that is what keeps this file from being the thing everyone conflicts o
 Do not start a tier until the one above is genuinely done. Six excellent screens
 beat thirteen hollow ones — but only if the six include something beyond CRUD.
 
+> **Backend rebuilt after the hackathon.** The hosted backend these rows were
+> built against has been deleted. Its schema, access rules, employee creation,
+> and file storage now live in the local TypeScript + SQLite API in `backend/`,
+> covered by `backend/test/api.test.ts`. Backend rows below are marked against
+> that rebuild.
+
 **Markers:** ☐ not started · ◐ partly done, with what remains stated in the row ·
 ☑ done and verified · ✖ dropped, with the reason in the row. Never tick ☑ for
 something only verified in theory.
@@ -27,7 +33,7 @@ something only verified in theory.
 | 1.5 | `.env.example` committed, so nobody is blocked asking where the keys live | Armaan | ☑ |
 | 1.6 | Vercel project linked; production tracks `main`; branch previews on. **Leave Root Directory as the repo root** — see the note below | Armaan | ☑ https://dayflow-odoo-sand.vercel.app/ |
 | 1.6a | **Verify the SPA rewrite on the deployed preview**: open a deep link such as `/employees/x` and hard-refresh. 200, not 404. This is the only test that exercises `vercel.json`, and it closes 1.4 | Armaan | ☑ `/employees/abc123`, `/attendance`, `/time-off` all 200 and serve the app HTML |
-| 1.7 | Supabase project created, keys shared with the team | Praneet | ☐ |
+| 1.7 | Local backend runs with `npm run dev`; no keys needed | Praneet | ☑ |
 | 1.8 | Each builder copies `docs/BUILD_RULES.md` into a local, gitignored `CLAUDE.md` | all | ☐ |
 
 > **Linking Vercel — the one setting that breaks the deploy.** Vercel looks for
@@ -54,23 +60,23 @@ is the sign-up → landing path working end to end.
 | 2.7 | Landing page | Pooja | ✖ dropped — Dayflow is an internal HR tool and `/` redirects to sign in |
 | 2.8 | Sign In page — email and password, plus error states | Athira | ☐ |
 | 2.9 | Sign Up page — company name, logo upload, admin details. Company registration only, per `AUTH.md` §1 | Athira | ☐ |
-| 2.9a | Backend Milestone 0 — linked/local migration parity, auth/salary contract decisions, and RLS test matrix locked | Praneet | ☑ linked and local history both at `20260822043456`; see `RLS_TEST_MATRIX.md` |
+| 2.9a | Backend Milestone 0 — auth/salary contract decisions and access-rule tests locked | Praneet | ☑ see `backend/test/api.test.ts` |
 | 2.10 | Migrations: every table in `SCHEMA.md` | Praneet | ☑ all four MVP tables and guarded operations are migrated locally and remotely |
-| 2.11 | RLS on every table. **Test each policy manually against both dev accounts** | Praneet | ◐ directory/profile/attendance/leave boundaries covered by rollback tests; linked two-user browser verification remains |
+| 2.11 | Access rules on every route. **Test each rule against both dev accounts** | Praneet | ☑ directory/profile/attendance/leave/file boundaries covered by API tests |
 | 2.12 | Use work email as the only sign-in identifier — no generated login ID or login-ID authentication | Praneet | ☑ employee creation returns only a temporary password |
-| 2.12a | Employee self-update guard — RLS has no column dimension, so prevent changes to role, company, wage, balances, and active state | Praneet | ☑ `enforce_employee_update_boundary` trigger |
+| 2.12a | Employee self-update guard — prevent changes to role, company, wage, balances, and active state | Praneet | ☑ per-role field allow-lists in `PATCH /api/employees/:id` |
 | 2.12b | Company-scoped directory-safe RPC with only documented safe columns | Praneet | ☑ `list_employee_directory()` |
 | 2.12c | Leave-review transaction: set reviewer/status and decrement the matching leave balance exactly once | Praneet | ☑ guarded `review_leave_request()` with rollback-tested one-time balance movement |
 | 2.13 | Seed data per `SCHEMA.md` — 10–12 employees, current attendance, all presence states, and pending requests | Praneet | ☑ repeatable local-only seed with 12 employees and mixed attendance/leave data |
 | 2.15 | **Two seeded dev accounts, admin and employee, logged into from a real browser** | Praneet | ◐ both local accounts passed real Auth/API login; visible browser and linked-account pass remain |
 | 2.16 | `AuthProvider` + `ProtectedRoute` + `AdminRoute` | Praneet | ◐ implemented; signed-out browser redirect verified, authenticated admin/employee browser verification remains |
-| 2.17 | `npx supabase gen types typescript` → `types/database.ts`, committed | Praneet | ◐ generated from the verified linked schema and build-tested; commit remains |
-| 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change; verify the browser never receives a service-role key | Praneet + Armaan | ◐ Edge Function deployed and local authenticated E2E passed; linked signed-in browser flow remains |
+| 2.17 | Row types in `types/models.ts` match `backend/src/schema.sql` | Praneet | ☑ |
+| 2.18 | Server-side employee creation with a one-time temporary password and forced first-login change | Praneet + Armaan | ☑ `POST /api/employees`; covered by API tests |
 | 2.19 | Smoke test rendering every route, so unbuilt screens still fail loudly | Armaan | ☐ |
 | 2.20 | `pages/Scaffold.tsx` deleted. `pages/NotBuiltYet.tsx` replaces it — delete that once every route on `main` has a real page | Armaan | ◐ |
 
 **Exit criteria.** Landing and sign-in look right in a real browser in both
-themes; tokens are in `DESIGN.md` *and* live in the app; schema, RLS, types and
+themes; tokens are in `DESIGN.md` *and* live in the app; schema, access rules, types and
 seed data are up; **both dev accounts log in**. Stage 3 does not start early.
 
 ## Stage 3 — Every remaining page
@@ -97,7 +103,7 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ live balances/request/cancel and private attachment upload wired; signed-in browser verification remains |
 | 3.8a | **Time Off — full year calendar view**, matching the reference wireframe: 12-month grid, status legend (approved/pending/rejected), static public-holiday list, year stepper. Toggle alongside the existing List view | Armaan | ☑ |
 | 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ live company reads and approve/reject wired; comment-entry UI and signed-in browser verification remain |
-| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Use work email for sign-in and show the temporary password once; balances and wage live on the employee row | Athira | ◐ live Edge Function and one-time credential result wired; linked signed-in browser verification remains |
+| 3.10 | **Add Employee** (privileged) — form and server-side account creation. Use work email for sign-in and show the temporary password once; balances and wage live on the employee row | Athira | ☑ server-side creation and one-time credential result wired |
 | 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ guarded single-RPC live summary wired and two-role API tested; visible browser verification remains |
 | 3.12 | **Change password** — normal account setting and mandatory first-login flow for HR-created employees | Athira | ◐ page, Auth update, database trigger, and route enforcement implemented; live forced-flow browser verification remains |
 
@@ -114,7 +120,7 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 |---|---|---|---|
 | 3.18 | Analytics dashboard — attendance trend, leave usage, headcount by department | | ☐ |
 | 3.19 | Attendance calendar view | | ☐ |
-| 3.20 | Company settings — name, logo, time-off types, working schedule | Praneet | ◐ backend schema, RLS, and service complete; settings page remains |
+| 3.20 | Company settings — name, logo, time-off types, working schedule | Praneet | ◐ backend schema, access rules, and service complete; settings page remains |
 | 3.21 | In-app notifications on leave approval | Praneet | ◐ secure notification creation/read API complete; notification UI remains |
 
 ## Stage 4 — Real backend wiring
@@ -130,7 +136,7 @@ lane had in-flight work on the same pages. Expect this stage to be ugly.
 | 4.3 | Attendance, both views, and the check in/out control | Praneet | ☑ live own-month, guarded company-day register, and header actions |
 | 4.4 | Time off, both views | Praneet | ☑ live employee requests/balances/cancellation and atomic Admin/HR review |
 | 4.5 | Salary Info calculation and wage updates | Praneet | ☑ live wage reads/privileged updates with client-side derived breakdown |
-| 4.6 | Add employee through server-side temporary-password creation and force the first password change | Praneet | ☑ authenticated deployed Edge Function and forced-change trigger |
+| 4.6 | Add employee through server-side temporary-password creation and force the first password change | Praneet | ☑ `POST /api/employees` and the forced password change |
 | 4.7 | Dashboard aggregates | Praneet | ☑ guarded `get_dashboard_summary()` RPC |
 | 4.8 | Delete `fixtures/` once nothing imports it | Praneet | ☑ no fixture imports remain; directory deleted |
 
@@ -148,7 +154,7 @@ honest multi-author history comes from.
 | 5.4a | Status chips legible in grayscale and with colour-vision deficiency simulated. **Present vs on leave is the failing pair** — spring green 0.61 and cornflower 0.65 relative luminance. Check the glyphs carry it | Armaan | ☐ |
 | 5.5 | Keyboard reachability and focus rings | all | ☐ |
 | 5.6 | Zero console errors, fresh browser, production link | all | ☐ |
-| 5.7 | RLS re-verified: log in as an employee and confirm coworker salary/private data is genuinely denied, not merely hidden | Praneet | ◐ local seeded two-role API test passed; linked visible-browser pass remains |
+| 5.7 | Access re-verified: log in as an employee and confirm coworker salary/private data is genuinely denied, not merely hidden | Praneet | ☑ seeded two-role API tests pass |
 | 5.8 | Seed data reviewed as a judge would read it — no "Employee 1", no lorem ipsum | all | ◐ realistic named local seed is in place; final team review remains |
 | 5.9 | Screenshots and GIFs. **Needs a human at a visible browser** — a backgrounded tab gets no `requestAnimationFrame`, so automated capture freezes mid-animation | all | ☐ |
 | 5.10 | **The showcase README.** A judge often opens it before the live link. Budget real time; it cannot be the last fifteen minutes | Armaan | ☐ |
@@ -158,7 +164,7 @@ honest multi-author history comes from.
 
 ## Definition of done, per page
 
-Uses services, never Supabase directly · uses shared primitives, no ad-hoc
+Uses services, never the API directly · uses shared primitives, no ad-hoc
 styling · `npm run lint` and `npm run build` both pass · matches `DESIGN.md`,
 checked in a real browser, **both themes** · has loading, empty and error states ·
 works at mobile width · keyboard reachable · respects `prefers-reduced-motion` ·

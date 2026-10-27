@@ -7,9 +7,8 @@ runs on in one place, and makes them agree with each other: **who works here,
 who showed up today, who is on leave, and what each person is owed at the end of
 the month.**
 
-### 🔗 [**Open the live app →**](https://dayflow-odoo-sand.vercel.app/)
-
-Sign in with either demo account below — the sign-in page fills them for you.
+Runs entirely on your machine: a React frontend and a small TypeScript API over
+a single SQLite file. See [Run it](#run-it).
 
 ![Dayflow employee directory](docs/screenshots/directory.png)
 
@@ -29,7 +28,7 @@ retyping.
 Sign in as **admin** to see the whole company — every salary, the approval
 queue, employee creation. Sign in as **employee** to see the same app from the
 other side: own attendance, own leave, own salary, and nothing belonging to
-anyone else. The difference between those two views is enforced in the database,
+anyone else. The difference between those two views is enforced by the API,
 not in the interface.
 
 > These are throwaway demo accounts holding seeded data. Delete them, and the
@@ -89,10 +88,11 @@ attendance and remaining balances.
 
 ## Stack
 
-**React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel**
+**React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Hono · SQLite**
 
-No Next.js, no Express. Supabase *is* the backend; `frontend/src/services/` is
-the contract in front of it.
+The backend is a small TypeScript API on Node, using the built-in `node:sqlite`
+module, so there is no database server to install. It runs locally only; Vite
+proxies `/api` to it, so the browser sees a single origin.
 
 ## Architecture
 
@@ -101,109 +101,99 @@ frontend/src/
   components/ui/      shared primitives — every page builds from these
   components/layout/  app shell, header, nav
   pages/              one folder per screen
-  services/           the only place Supabase is imported
+  services/           the only place the API is called
   lib/salary.ts       the salary engine — a pure function, no I/O
   lib/dates.ts        working-day maths, shared so counts cannot disagree
   context/            AuthProvider
-  types/database.ts   generated from the schema, never hand-edited
-backend/supabase/
-  migrations/         schema, RLS, functions
-  functions/          server-side employee creation
+  types/models.ts     row and view types, kept in step with the schema
+backend/src/
+  schema.sql          tables and constraints
+  routes/             one file per domain — every access rule lives here
+  auth.ts             passwords, sessions, request guards
+  seed.ts             the demo company
+backend/test/         access rules, exercised through the real routes
 docs/
 ```
 
-**Pages never import Supabase.** They call services; services call Supabase.
+**Pages never call the API directly.** They call services; services call `/api`.
 One person owns that boundary, which is what let four people build pages in
-parallel without colliding on the data layer.
+parallel without colliding on the data layer — and what let the backend be
+replaced after the hackathon without touching a single page.
 
-**Security lives in row-level policies, not in route guards.** A guard hides a
-screen; it does not stop a request. Every rule that matters — an employee cannot
-read a colleague's salary, cannot edit their own role, cannot approve their own
-leave — is a policy in the database, and the interface merely agrees with it.
+**Security lives in the API, not in route guards.** A guard hides a screen; it
+does not stop a request. Every rule that matters — an employee cannot read a
+colleague's salary, cannot edit their own role, cannot approve their own leave —
+is checked by the server on every request, and the interface merely agrees with
+it. Each rule has a test in `backend/test/api.test.ts`.
 
 The salary engine is a pure function over a single wage, which is why the Salary
-screen recomputes on every keystroke with no round-trip, and why it is the one
-piece of logic in the build carrying its own test.
+screen recomputes on every keystroke with no round-trip.
 
 ## Team
 
 | | |
 |---|---|
 | **Armaan** | Integrator — `main`, design system, UI primitives, router, shell, deploy |
-| **Praneet** | Backend — schema, RLS, seed data, services, generated types |
+| **Praneet** | Backend — schema, API and access rules, seed data, services, types |
 | **Pooja** | Pages, illustration and visual polish |
 | **Athira** | Pages, auth surfaces and profile features |
 
 ---
 
-<details>
-<summary><strong>Setup, environment and local demo data</strong></summary>
+<details open>
+<summary><strong>Setup, demo data and checks</strong></summary>
 
 ### Run it
 
-```bash
-cd frontend
-npm install
-cp .env.example .env.local   # fill in the Supabase keys
-npm run dev
-```
-
-### Environment
-
-| var | what |
-|---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key. The anon key only — the service role key never reaches the browser |
-
-Everyone runs against the **same shared Supabase project**: one schema, one
-source of truth, no drift across laptops. Only the backend owner runs
-migrations, and destructive changes get announced first.
-
-### Local demo database
-
-For a repeatable local demo, review `backend/supabase/seed.sql` and then run
-from `backend/`:
+Needs **Node 24 or newer** (it runs the TypeScript backend directly and uses the
+built-in SQLite module). Then, from the repo root:
 
 ```bash
-supabase db reset --local
+npm run setup   # installs the root, backend and frontend packages
+npm run dev     # API on :8787 and the app on http://localhost:5173
 ```
 
-This replaces **local** database data and creates the demo company, with current
-attendance history and sample leave requests. All seeded accounts use the same
-password: `DayflowDemo7!`
+No environment variables or keys are needed. On first run the API creates
+`backend/data/dayflow.db` and seeds the demo company. Uploaded avatars, logos
+and leave documents go in `backend/uploads/`. Both folders are gitignored.
+
+```bash
+npm run db:reset   # delete the database and uploads, and reseed
+```
+
+### Demo data
+
+Company **Neam Tull**. Every seeded account uses the password `DayflowDemo7!`.
 
 | role | employee | email | position | department |
 |---|---|---|---|---|
+| Admin | Meera Krishnan | `odootestadmin@gmail.com` | HR Manager | Human Resources |
+| Employee | Rahul Menon | `odootestemployee@gmail.com` | Backend Developer | Engineering |
 | Admin | Praneet Tigga | `praneettigga@gmail.com` | admin | management |
 | Employee | Armaan Mohamed | `amohamed@karunya.edu.in` | Integrator | Engineering |
 | Employee | Poojashree Ravichandar | `poojashree@karunya.edu.in` | Frontend Developer | Engineering |
 | Employee | Athira Arun | `athiraarun@karunya.edu.in` | Quality Assurance Engineer | Engineering |
 
-Do not reuse `DayflowDemo7!` for real users — create employees through the app,
-which issues a one-time temporary password the employee must replace at first
-sign-in.
+Attendance covers this month's weekdays up to today. Four people are checked in
+today; Athira and Rahul are not, so the directory shows every presence state and
+the employee demo account can try checking in. Two requests are pending.
 
-### Deploying
-
-`vercel.json` lives at the repo root and builds `frontend/` itself, so when
-linking the project **leave Root Directory as the repo root.** Vercel tends to
-suggest `frontend`, since that is where the only `package.json` is — take that
-suggestion and the SPA rewrite is silently ignored: the build still goes green,
-the landing page still loads, and every deep-link refresh 404s in production.
+Registering a new company on the sign-up page signs you straight in — there is
+no email confirmation. Employees you add through the app get a one-time
+temporary password, which they replace at first sign-in.
 
 ### Checks
 
 ```bash
-npm run lint
-npm run build     # runs tsc -b, so a type error fails it
-node --experimental-strip-types src/lib/salary.test.ts
+npm test        # API access-rule tests + the salary engine test
+npm run check   # backend typecheck, frontend lint, frontend build
 ```
 
 ### Docs
 
-`docs/HACKATHON_PLAN.md` is the operating manual. `docs/SCHEMA.md` and
-`docs/SERVICES.md` are the data contract — if something is not in them, it does
-not exist. `docs/BUILD_RULES.md` goes into your local, gitignored `CLAUDE.md`
-before you run an AI session on this repo.
+`docs/HACKATHON_PLAN.md` is the operating manual. `docs/SCHEMA.md`,
+`docs/AUTH.md` and `docs/SERVICES.md` are the data contract — if something is
+not in them, it does not exist. `docs/BUILD_RULES.md` goes into your local,
+gitignored `CLAUDE.md` before you run an AI session on this repo.
 
 </details>

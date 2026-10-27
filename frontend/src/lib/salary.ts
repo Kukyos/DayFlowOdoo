@@ -1,5 +1,5 @@
 /**
- * The salary engine. A pure function — no Supabase, no I/O, no React.
+ * The salary engine. A pure function — no API calls, no I/O, no React.
  *
  * docs/SCHEMA.md is the authority for these rules. Nothing here is stored:
  * the MVP keeps one `monthly_wage` column and derives every component from it,

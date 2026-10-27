@@ -21,7 +21,7 @@ import girlGreeting from '@/assets/employee-girl-greeting.png'
 /**
  * Picks a greeting mascot per employee. Athira/Pooja's original picked from a
  * hardcoded set of fixture ids ('e-01', 'e-03', ...) — meaningless now that
- * employee.id is a real Supabase UUID, so every real user would have fallen
+ * employee.id is a real database UUID, so every real user would have fallen
  * through to the same image. A stable hash of the real id keeps the intent
  * (some visual variety across people) without depending on fixture data.
  */

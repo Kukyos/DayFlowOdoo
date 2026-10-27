@@ -210,7 +210,7 @@ function PrivacyContent() {
           Coworkers see only directory-safe fields: name, position, department,
           and whether you are in today. Private information, salary, and bank
           details are visible to you and to your company's admin/HR officers
-          only, enforced at the database level, not just hidden in the
+          only, enforced by the server, not just hidden in the
           interface.
         </p>
       </div>

@@ -11,12 +11,12 @@ import { emailProblem, passwordProblem, signUpCompany } from '@/services/auth'
  * docs/AUTH.md §1: employees cannot self-register; HR creates them. The PDF
  * describes an open sign-up with a role dropdown, and the wireframes override
  * it — an open role dropdown would let anyone select HR and read every salary
- * in the company. So there is no role field on this form, and the database
- * assigns `admin` rather than trusting anything the client sends.
+ * in the company. So there is no role field on this form, and the server
+ * assigns `admin` rather than trusting anything the client sends. There is no
+ * email confirmation step: a successful sign-up is signed straight in.
  */
 export function SignUp() {
   const navigate = useNavigate()
-  const [sentTo, setSentTo] = useState<string | null>(null)
   const [form, setForm] = useState({
     companyName: '',
     firstName: '',
@@ -62,7 +62,7 @@ export function SignUp() {
 
     setBusy(true)
     try {
-      const result = await signUpCompany({
+      await signUpCompany({
         companyName: form.companyName,
         firstName: form.firstName,
         lastName: form.lastName,
@@ -70,52 +70,12 @@ export function SignUp() {
         mobile: form.mobile,
         password: form.password,
       })
-      if (result.confirmationRequired) {
-        setSentTo(form.email.trim().toLowerCase())
-      } else {
-        navigate('/dashboard', { replace: true })
-      }
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the account.')
     } finally {
       setBusy(false)
     }
-  }
-
-  if (sentTo) {
-    return (
-      <AuthLayout otherAction="signin">
-        <AuthCard
-          title="Confirm your email"
-          footer={
-            <p className="t-caption text-auth-panel-ink">
-              Wrong address?{' '}
-              <button
-                type="button"
-                onClick={() => setSentTo(null)}
-                className="font-bold underline underline-offset-4"
-              >
-                Go back and change it
-              </button>
-            </p>
-          }
-        >
-          <p className="t-body">
-            We sent a confirmation link to <strong>{sentTo}</strong>. Follow it,
-            then sign in — your company and admin account are already created.
-          </p>
-          <p className="t-caption mt-4 text-text-muted">
-            Nothing arrived? Check the spam folder. The link returns you to the
-            sign-in page.
-          </p>
-          <Link to="/signin">
-            <Button variant="strong" className="mt-6 w-full">
-              Go to sign in
-            </Button>
-          </Link>
-        </AuthCard>
-      </AuthLayout>
-    )
   }
 
   return (

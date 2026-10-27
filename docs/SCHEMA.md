@@ -1,22 +1,34 @@
-# Dayflow MVP schema
+# Dayflow schema
 
-Conventions: `snake_case`; UUID primary keys use `gen_random_uuid()`; all money
-is `numeric(12,2)`; calendar days are `date`; timestamps are `timestamptz`.
-Every application table has RLS enabled.
+The database is one SQLite file, `backend/data/dayflow.db`, created from
+`backend/src/schema.sql` on first run and seeded with the demo company.
+`npm run db:reset` deletes it (and the uploads folder) and starts over.
+
+Conventions: `snake_case`; ids are UUID strings from `crypto.randomUUID()`;
+calendar days are `YYYY-MM-DD` text; timestamps are ISO-8601 UTC text; money and
+leave balances are `real` rupees/days; booleans are `0`/`1`; array columns are
+JSON text. The API converts booleans and arrays back when it sends a row, so the
+frontend sees the shapes in `frontend/src/types/models.ts`.
 
 ```text
-auth.users → employees → attendance
-                       → leave_requests
+users → employees → attendance
+                  → leave_requests → notifications
 companies → employees
+users → sessions
 ```
 
-**Implementation status (2026-08-22):** the repository and linked project have
-the auth/company foundation, forced-password-change guard, company-scoped safe
-directory RPC, controlled employee updates, live attendance actions/history,
-the employee/admin leave workflow through atomic review, privileged employee
-creation/deactivation, company-scoped Storage, and a guarded dashboard summary.
-A repeatable local-only demo seed covers the four-table MVP. Later-tier tables
-remain future milestones.
+The database stores data; **access rules live in the API** (`backend/src/routes/`).
+The browser never reaches the database directly.
+
+## `users` and `sessions`
+
+`users` holds sign-in credentials: `id`, `email` (unique, case-insensitive),
+`password_hash` (scrypt), `created_at`. Every user has exactly one `employees`
+row with the same `id`.
+
+`sessions` maps a random token (the `dayflow_session` HttpOnly cookie) to a
+`user_id`. Signing out deletes the row; changing a password deletes the user's
+other sessions; deactivating an employee deletes all of theirs.
 
 ## `companies`
 
@@ -24,53 +36,40 @@ Created with the first admin during company sign-up.
 
 | column | type | notes |
 |---|---|---|
-| `id` | uuid pk | |
+| `id` | text pk | |
 | `name` | text not null | e.g. `Odoo India` |
-| `logo_url` | text | company-logo Storage URL |
-| `time_off_types` | text[] default paid/sick/unpaid | Labels available in the request form |
-| `working_days` | smallint[] default 1–5 | Sunday = 0 through Saturday = 6 |
-| `workday_start` / `workday_end` | time default 09:00/17:00 | Company working schedule |
-| `created_at` | timestamptz default now() | |
-
-Only an active Admin/HR employee may update their own company's settings.
+| `logo_url` | text | `/api/files/company-logos/...` |
+| `time_off_types` | JSON text, default paid/sick/unpaid | Labels available in the request form |
+| `working_days` | JSON text, default `[1,2,3,4,5]` | Sunday = 0 through Saturday = 6 |
+| `workday_start` / `workday_end` | text, default `09:00:00`/`17:00:00` | Start must be before end |
+| `created_at` | text | |
 
 ## `employees`
 
-One row per authenticated user. `employees.id = auth.users.id`; this makes own
-row checks use `auth.uid()` directly. There are no department, skill, private
-information, salary, leave-allocation, or login-counter tables.
+One row per user. `employees.id = users.id`. There are no department, skill,
+salary-component or leave-allocation tables.
 
 | column | type | notes |
 |---|---|---|
-| `id` | uuid pk | → `auth.users(id)` on delete cascade |
-| `company_id` | uuid not null | → `companies(id)` |
+| `id` | text pk | → `users(id)` on delete cascade |
+| `company_id` | text not null | → `companies(id)` |
 | `role` | text not null | `admin`, `hr`, or `employee` |
 | `first_name` / `last_name` | text not null | |
-| `work_email` | text not null | Auth email |
-| `mobile` | text | |
-| `job_position` | text | |
-| `department` | text | Plain string |
-| `location` | text | |
-| `manager_id` | uuid | → `employees(id)`, nullable, on delete set null |
-| `date_of_joining` | date | |
-| `avatar_url` | text | avatar Storage URL |
-| `about` | text | Resume tab |
-| `skills` | text[] | Resume tab |
-| `date_of_birth` | date | Private Info |
-| `address` | text | Private Info |
-| `bank_account_number` | text | Private Info |
-| `ifsc_code` | text | Private Info |
-| `pan_no` | text | Private Info |
-| `uan_no` | text | Private Info |
-| `monthly_wage` | numeric(12,2) | The one salary input |
-| `paid_leave_balance` | numeric(5,2) default 24 | Mutated only when paid leave is approved |
-| `sick_leave_balance` | numeric(5,2) default 7 | Mutated only when sick leave is approved |
-| `is_active` | boolean default true | Soft deactivation |
-| `must_change_password` | boolean default false | Set for HR-created accounts until the temporary password is replaced |
-| `created_at` | timestamptz default now() | |
+| `work_email` | text not null | The sign-in email; never changed through the API |
+| `mobile`, `job_position`, `department`, `location` | text | Department is a plain string |
+| `manager_id` | text | → `employees(id)`, on delete set null |
+| `date_of_joining` | text date | |
+| `avatar_url` | text | `/api/files/avatars/...` |
+| `about`, `skills` | text, JSON text | Resume tab |
+| `date_of_birth`, `address`, `bank_account_number`, `ifsc_code`, `pan_no`, `uan_no` | text | Private Info |
+| `monthly_wage` | real | The one salary input; at least ₹24,998 when set |
+| `paid_leave_balance` | real default 24 | Moved only when paid leave is approved |
+| `sick_leave_balance` | real default 7 | Moved only when sick leave is approved |
+| `is_active` | 0/1 default 1 | Soft deactivation |
+| `must_change_password` | 0/1 default 0 | Set for HR-created accounts until the temporary password is replaced |
+| `created_at` | text | |
 
-`admin` and `hr` are privileged. The role is database data, never read from
-user-editable `auth.users.raw_user_meta_data` for authorization.
+`admin` and `hr` are privileged. The role is stored data, assigned by the server.
 
 ### Salary calculation
 
@@ -83,137 +82,86 @@ user-editable `auth.users.raw_user_meta_data` for authorization.
 - Fixed Allowance: the remaining wage
 - PF: 12% of Basic; Professional Tax: ₹200
 
-The components are display values. No payroll, salary-component, or payslip
-records are stored in the MVP. An employee may read their own `monthly_wage` but
-cannot update it; Admin/HR may read and update wages for their own company.
+₹24,998 is the lowest wage whose fixed allowance is not negative, which is why
+the schema and `POST /api/employees` both enforce it.
 
 ## `attendance`
 
-One row per employee per work date.
+One row per employee per work date (`unique (employee_id, work_date)`).
 
 | column | type | notes |
 |---|---|---|
-| `id` | uuid pk | |
-| `employee_id` | uuid not null | → `employees(id)` on delete cascade |
-| `work_date` | date not null | Unique together with `employee_id` |
-| `check_in` | timestamptz | Set by Check In |
-| `check_out` | timestamptz | Null until Check Out |
-| `status` | text not null default `'present'` | `present`, `half_day`, `absent`, or `leave` |
-| `created_at` | timestamptz default now() | |
+| `id` | text pk | |
+| `employee_id` | text not null | → `employees(id)` on delete cascade |
+| `work_date` | text date | Asia/Kolkata calendar day |
+| `check_in` / `check_out` | text timestamp | `check_out` is null until Check Out, and never before `check_in` |
+| `status` | text default `present` | `present`, `half_day`, `absent`, or `leave` |
+| `created_at` | text | |
 
-`work_hours` is derived at read time: `check_out - check_in`. A second check-in
-for the same date fails through the unique constraint.
+`work_hours` is derived at read time from `check_out - check_in`.
 
 ## `leave_requests`
 
-The full Time Off feature. There are no leave-type, allocation, or balance
-tables.
-
 | column | type | notes |
 |---|---|---|
-| `id` | uuid pk | |
-| `employee_id` | uuid not null | → `employees(id)` on delete cascade |
-| `leave_type` | text not null | `paid`, `sick`, or `unpaid` |
-| `start_date` / `end_date` | date not null | Inclusive range |
-| `days` | numeric(5,2) not null | Calculated by the request service |
+| `id` | text pk | |
+| `employee_id` | text not null | → `employees(id)` on delete cascade |
+| `leave_type` | text | `paid`, `sick`, or `unpaid` |
+| `start_date` / `end_date` | text date | Inclusive; end ≥ start |
+| `days` | real > 0 | Weekdays in the range, counted by the server |
 | `remarks` | text | |
-| `attachment_url` | text | leave-documents Storage URL; optional for MVP |
-| `status` | text not null default `'pending'` | `pending`, `approved`, or `rejected` |
-| `reviewed_by` | uuid | → `employees(id)` |
+| `attachment_url` | text | Object path in the private `leave-documents` store |
+| `status` | text default `pending` | `pending`, `approved`, or `rejected` |
+| `reviewed_by` | text | → `employees(id)`; set exactly when the status is decided |
 | `review_comment` | text | |
-| `created_at` | timestamptz default now() | |
-
-`create_leave_request()` derives the caller and weekday count in the database;
-the browser cannot insert an arbitrary employee or day total. Approving a paid
-or sick request through `review_leave_request()` decrements the matching
-balance in the same database transaction. Unpaid leave changes no balance.
-Re-reviewing an already approved or rejected request fails without changing a
-balance twice.
+| `created_at` | text | |
 
 ## `notifications`
 
-Server-created in-app notifications for leave decisions. A notification belongs
-to one employee, optionally links to its `leave_request`, and stores `type`,
-`title`, `message`, nullable `read_at`, and `created_at`. Employees can read only
-their own notifications and may change only `read_at`; the leave-review status
-transition creates the notification in the same transaction.
+Written by the server when a leave request is decided: `employee_id`, `type`
+(`leave_approved` / `leave_rejected`), `title`, `message`, `leave_request_id`
+(unique — one notification per decision), nullable `read_at`, `created_at`.
 
-## Directory-safe employee RPC
+## Derived presence
 
-Normal employees must never query coworkers' full `employees` rows. This RPC
-returns only:
+Never stored. For a given day: checked in → `present`; otherwise approved leave
+covering the day → `leave`; otherwise `absent`. The directory, the dashboard and
+the company attendance register all use `presenceSql()` in
+`backend/src/queries.ts`, so they cannot disagree.
 
-```text
-id, first_name, last_name, avatar_url, job_position, department, location,
-work_email, manager_id, about, skills, presence
-```
-
-It must never expose wages, private information, or leave balances. `presence`
-is derived at query time, never stored on `employees`:
-
-1. checked in today → `present`
-2. otherwise, approved leave covering today → `leave`
-3. otherwise → `absent`
-
-Because employees can select only their own `employees` row,
-`list_employee_directory()` is a guarded `SECURITY DEFINER` RPC. It enforces
-company scope using the caller's active employee row and returns only the
-columns above. Grant authenticated users execute only on this narrow RPC, not
-broad coworker access to `employees`.
-
-## RLS and controlled operations
-
-Use small helper functions based on the caller's `employees` row:
-`current_company_id()` and `is_privileged()`. Keep privileged functions out of
-the browser; never expose a service-role key.
+## Access rules (enforced in `backend/src/routes/`)
 
 | resource | employee | admin / HR |
 |---|---|---|
-| `companies` | select own company | select and update own company |
-| `employees` | select own full row; update own permitted profile/private fields | select and update company employees; create accounts through the Edge Function |
-| `list_employee_directory()` | read company directory-safe data | read company directory-safe data |
-| `attendance` | select own; check in/out own current-day row through RPCs | select company attendance; check in/out only the caller's row through RPCs |
-| `leave_requests` | select own; create own through RPC; delete pending own request | select company requests; approve or reject through the transactional RPC |
+| company | read own | read and update own |
+| employee full record | own only | anyone in the company |
+| directory (safe columns + presence) | own company | own company |
+| employee update | own safe fields: about, skills, mobile, address, avatar, date of birth, bank/IFSC/PAN/UAN | also names, job, department, location, manager, joining date, wage, role, balances — never id, company, sign-in email, or password flag |
+| create / deactivate employee | — | own company; never deactivate yourself |
+| attendance | own rows; check in/out today only | read company rows and the day register |
+| leave requests | own; create; cancel own pending | read company; approve/reject once |
+| notifications | own; mark read | own; mark read |
+| avatars, company logos | public to read; upload own avatar | upload any avatar / logo |
+| leave documents | own only | anyone in the company |
 
-An employee update policy must not allow changing `role`, `company_id`,
-`monthly_wage`, leave balances, `is_active`, or another employee's identity.
-Use a trigger or a dedicated update function to enforce that column boundary.
-It must also prevent employees from clearing `must_change_password` directly.
-A private trigger clears the flag only when Supabase Auth updates that user's
-actual password hash.
-Leave approval should be a protected transactional function that validates the
-reviewer and request company, changes status, stamps `reviewed_by`, and adjusts
-the appropriate balance exactly once.
+Every rule has a case in `backend/test/api.test.ts`.
 
-## Auth and Storage
+## Files
 
-The first public company registration creates its admin, company, and employee
-row. Employees are created by Admin/HR through a server-side operation that
-creates the Auth user and employee row, generates a cryptographically secure
-temporary password, and returns that password once to the creating Admin/HR.
-The service-role key and plaintext password are never stored in the browser or
-database. The employee must replace the temporary password at first sign-in.
-Employees do not self-register. Email and password are the required sign-in
-path. Employee creation generates only a temporary password; the employee's
-work email is the sole sign-in identifier.
-
-Storage buckets: public `avatars` and `company-logos`, plus private
-`leave-documents`. Object paths begin with the caller's company ID; employee
-assets add the employee ID as the second segment. Avatars are limited to JPG,
-PNG, or WebP (5 MB), logos also allow SVG (5 MB), and leave documents allow
-PDF, JPG, or PNG (10 MB). Private leave documents are opened through
-authorization-checked, short-lived signed URLs.
+Uploads are stored on disk at `backend/uploads/<bucket>/<company-id>/...`.
+Avatars (JPG/PNG/WebP, 5 MB) and company logos (also SVG, 5 MB) are served
+publicly at `/api/files/<bucket>/...`. Leave documents (PDF/JPG/PNG, 10 MB) are
+served from the same path only after the session check above.
 
 ## Seed data
 
-`backend/supabase/seed.sql` creates one company, 12 employees (one admin, one HR,
-and ten employees), realistic profiles and salary values, current-month
-attendance, all three presence states today, and mixed leave decisions. It runs
-only during local reset by default; normal linked migration pushes do not apply
-it.
+`backend/src/seed.ts` creates the company **Neam Tull** with six people, this
+month's weekday attendance (every seventh day a half day), four checked in today,
+and pending, approved and rejected leave. Every account's password is
+`DayflowDemo7!`.
 
 ## Deliberately out of scope
 
-Departments, skills, certifications, documents, leave types, leave allocations,
-salary structures/components, payroll runs, payslip history, holidays, working
-schedules, attendance corrections, and configurable payroll formulas.
+Departments, skills, certifications, leave types and allocations, salary
+structures/components, payroll runs, payslip history, holidays, attendance
+corrections, configurable payroll formulas, résumé file storage, and email.

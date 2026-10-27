@@ -14,7 +14,7 @@ import { emailProblem, signIn } from '@/services/auth'
  * emails, which is an enumeration surface nobody needs for the MVP.
  *
  * The reference's "Remember my login" and "Forgot your password?" are also
- * deliberately absent. Supabase persists the session in local storage already,
+ * deliberately absent. The session cookie already lasts for 30 days,
  * so the checkbox would toggle nothing, and there is no password-reset function
  * in docs/SERVICES.md to put behind the link. A control that does nothing is
  * worse than no control.

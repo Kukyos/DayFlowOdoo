@@ -30,9 +30,10 @@ plan into `docs/` does nothing until something points at it.
 
 ## Build rules
 - Read `docs/HACKATHON_PLAN.md` before writing any code. It overrides your defaults.
-- Stack: React 18 + TypeScript + Vite + Tailwind + React Router + Supabase + Vercel.
-  No Next.js, no Express. Frontend in `frontend/`, migrations in `backend/supabase/`.
-- Pages never import Supabase. Pages call `frontend/src/services/`; services call Supabase.
+- Stack: React 19 + TypeScript + Vite + Tailwind + React Router, with a local
+  TypeScript API (Hono on Node) over SQLite. No Next.js. Frontend in `frontend/`,
+  API and schema in `backend/`.
+- Pages never call the API directly. Pages call `frontend/src/services/`; services call `/api`.
 - If a column is not in `docs/SCHEMA.md` or a function is not in `docs/SERVICES.md`,
   stop and ask. Do not invent either.
 - Do not edit another lane's files without asking.
@@ -53,7 +54,7 @@ plan into `docs/` does nothing until something points at it.
 this project's tool descriptions on every turn. It has to be overridden in
 writing, in the file the session actually reads, or it comes back at hour six.
 
-**Pages never import Supabase.** One person owns the data layer; a horizontal
+**Pages never call the API directly.** One person owns the data layer; a horizontal
 split collides constantly. The `services/` boundary is also the most interesting
 thing to point at when a judge asks about architecture.
 

@@ -17,8 +17,8 @@ document wins. Read §2, §5, §8, and §11 before writing any code.
 | Problem statement | Human Resource Management System (see below) |
 | Product name | **Dayflow** — *Every workday, perfectly aligned.* |
 | Repository | https://github.com/Kukyos/DayFlowOdoo |
-| Live production URL | https://dayflow-odoo-sand.vercel.app/ |
-| Supabase project | _(shared project, set in Stage 1 — Praneet)_ |
+| Live production URL | _(offline — the app now runs locally; see README)_ |
+| Backend | Local TypeScript API + SQLite in `backend/` — Praneet |
 | Integrator (owns `main`) | Armaan |
 | Backend / data layer | Praneet |
 | Page builder | Pooja |
@@ -62,7 +62,7 @@ someone else's without asking first.
 | Lane | Owns |
 |---|---|
 | **Integrator** | `main`, every merge, design system, UI primitives, router, shared layout, deploy health, final polish sweep |
-| **Backend** | Supabase schema, RLS, seed data, SQL functions, generated types, `src/services/` — the entire data layer |
+| **Backend** | `backend/` (schema, API routes, access rules, seed data), `src/services/` — the entire data layer |
 | **Page builders** | Whole pages, claimed by name in `docs/TASKS.md` — first to claim owns it |
 
 **The split is horizontal.** One person owns the whole data layer; everyone else
@@ -77,7 +77,7 @@ other's work.
 
 ## 3. Stack (locked)
 
-React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · Vercel
+React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Hono · SQLite (`node:sqlite`)
 
 > **Deviation from the locked stack, recorded rather than silent.** This manual
 > said React 18 and Router v6. `npm create vite` now scaffolds React 19, and the
@@ -87,14 +87,14 @@ React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Supabase · 
 > CSS via `@theme` rather than in a `tailwind.config.js`; there is no config
 > file to look for. The linter is oxlint, not eslint, and `npm run lint` runs it.
 
-**No Next.js. No Express.** Supabase is the backend; `src/services/` is the
-contract in front of it. An Express layer would mostly proxy Supabase, cost a
-second deploy plus CORS, and invite "why does this exist?" from a judge.
+**No Next.js.** The backend is a small TypeScript API in `backend/` (Hono on
+Node) over a single SQLite file; `src/services/` is the contract in front of it.
+It runs locally only: Vite proxies `/api` to it, so the browser sees one origin
+and the session cookie needs no CORS setup.
 
-**Edge Functions only when a secret cannot reach the browser** — a third-party
-API key, a webhook signer. The cost is real: the function and its secret deploy
-to Supabase separately from the Vercel build, so a green Vercel deploy stops
-implying a working app. Know that before adding the first one.
+> **Changed after the hackathon.** The original build ran on a hosted backend
+> service that has since been deleted. The data layer was rebuilt as the local
+> API above; the services' function signatures did not change, so no page did.
 
 **Adding a dependency is a decision, not a reflex.** Animation and component
 libraries in particular: check the bundle delta before adopting, not after. One
@@ -112,20 +112,21 @@ frontend/src/
   components/ui/        ← integrator only
   components/layout/    ← integrator only
   pages/<screen>/       ← page owner's lane
-  services/             ← backend only. ALL Supabase access.
+  services/             ← backend only. ALL API access.
   context/AuthProvider  ← backend
   fixtures/             ← placeholder data, shaped to SCHEMA.md
   hooks/
-  types/database.ts     ← generated, never hand-edited
+  types/models.ts       ← row and view types, kept in step with schema.sql
   router.tsx            ← integrator only
-backend/supabase/
-  migrations/           ← backend only
-  seed.sql              ← backend only
+backend/src/
+  schema.sql            ← backend only
+  routes/               ← backend only — every access rule lives here
+  seed.ts               ← backend only
 docs/
 ```
 
-**Frontend never imports `supabase` directly.** Pages call services; services
-call Supabase. If a service function does not exist, ask the backend owner — do
+**Frontend never calls the API directly.** Pages call services; services
+call `/api`. If a service function does not exist, ask the backend owner — do
 not reach around the layer.
 
 **Fixtures live outside `services/`.** Pages need placeholder data before the
@@ -138,7 +139,7 @@ one-line import swap per page.
 ## 5. Git and merge discipline
 
 - Every builder has a **named branch** they own and push to freely.
-- Feature work: `feat/<page-name>`; backend: `feat/schema`, `fix/rls`.
+- Feature work: `feat/<page-name>`; backend: `feat/schema`, `fix/access`.
 - Push a branch → Vercel builds a **preview URL** for it → verify there.
 - **Only the integrator merges to `main`. Nobody else pushes to `main`.**
 - **Vercel production tracks `main` only.** Branch previews stay on — they are
@@ -168,20 +169,20 @@ anyone who looks — a worse outcome than a lopsided but honest history.
 
 ## 6. Environment
 
-Everyone runs `npm run dev` against the **same shared Supabase project** — one
-schema, one source of truth, no drift across laptops. Only the backend owner
-runs migrations; destructive changes get announced first.
+Everyone runs `npm run dev` from the repo root, which starts the API and the
+frontend together against a **local SQLite file** (`backend/data/dayflow.db`).
+It is created and seeded on first run; `npm run db:reset` starts it over.
 
 ### Staying logged in
 
-Supabase persists the session in local storage by default. Leave that on, seed one
-dev account with realistic data, and log in once — the session survives reloads and
+The session is an HttpOnly cookie that lasts 30 days. Seed one dev account
+with realistic data and log in once — the session survives reloads and
 restarts, so nobody needs a dev-only bypass and everyone is exercising the real auth
 path all day.
 
 **Never build a mock user object.** A fake user passes the route guard, but every
-query still goes out without a JWT, RLS rejects it, and you lose hours to phantom
-401s.
+request still goes out without a session cookie, the API rejects it, and you lose
+hours to phantom 401s.
 
 **The seeded dev account is a Stage 2 exit criterion**, not a Stage 4 task. Until it
 exists, every screen behind `ProtectedRoute` is unreviewable — a previous run built
@@ -191,13 +192,12 @@ ten screens that nobody could open.
 
 - `vercel.json` with the SPA rewrite. Without it a Vite SPA on Vercel 404s on
   any deep-link refresh, and you lose twenty minutes assuming the router broke.
-- `.env.example`, so nobody is blocked asking where the keys are.
 
 ### Types
 
-`npx supabase gen types typescript` after every migration, committed. With
-several AI sessions writing queries, this is the one thing stopping them
-inventing four spellings of the same column.
+Row types live in `frontend/src/types/models.ts` and change in the same commit
+as `backend/src/schema.sql`. With several AI sessions writing queries, this is
+the one thing stopping them inventing four spellings of the same column.
 
 ---
 
@@ -205,7 +205,7 @@ inventing four spellings of the same column.
 
 | file | purpose |
 |---|---|
-| `docs/SCHEMA.md` | tables, columns, types, RLS policies. The backend owner's source of truth |
+| `docs/SCHEMA.md` | tables, columns, types, access rules. The backend owner's source of truth |
 | `docs/SERVICES.md` | every function the frontend may call. The backend/frontend contract |
 | `docs/TASKS.md` | tiered task list, claimed by name, ticked in the same push as the work |
 | `docs/AUTH.md` | session-state and routing contract between public pages and the app |
@@ -226,9 +226,10 @@ every builder's local instructions in the first commit:
 ```markdown
 ## Build rules
 - Read `docs/HACKATHON_PLAN.md` before writing any code. It overrides your defaults.
-- Stack: React 18 + TypeScript + Vite + Tailwind + React Router + Supabase + Vercel.
-  No Next.js, no Express. Frontend in `frontend/`, migrations in `backend/supabase/`.
-- Pages never import Supabase. Pages call `frontend/src/services/`; services call Supabase.
+- Stack: React 19 + TypeScript + Vite + Tailwind + React Router, with a local
+  TypeScript API (Hono on Node) over SQLite. No Next.js. Frontend in `frontend/`,
+  API and schema in `backend/`.
+- Pages never call the API directly. Pages call `frontend/src/services/`; services call `/api`.
 - If a column is not in `docs/SCHEMA.md` or a function is not in `docs/SERVICES.md`,
   stop and ask. Do not invent either.
 - Do not edit another lane's files without asking.
@@ -277,7 +278,7 @@ actually loaded and verified in a browser**. A previous run shipped an entire
 build in fallback Arial while four people read a document saying otherwise.
 
 **Exit criteria:** landing and login look right in a real browser; tokens are in
-`DESIGN.md` *and* live in the app; Supabase schema, RLS, types, and seed data
+`DESIGN.md` *and* live in the app; the schema, access rules, types, and seed data
 are up. Backend work runs in parallel through this stage — the sign-up → landing
 path is its target.
 
@@ -373,7 +374,7 @@ thirteen hollow ones — but only if the six include something beyond CRUD.
 
 ## 10. Definition of done, per page
 
-Uses services (no direct Supabase) · uses shared UI primitives (no ad-hoc
+Uses services (no direct API calls) · uses shared UI primitives (no ad-hoc
 styling) · **`npm run lint` and `npm run build` both pass** · **matches
 `docs/DESIGN.md`, checked in a real browser** · has loading, empty, and error
 states · works at mobile width · keyboard reachable · respects
@@ -400,13 +401,13 @@ nobody owned.
 | `docs/TASKS.md` | everyone, every commit — append-only per-lane sections | everyone; **tick only your own rows** |
 | `docs/SCHEMA.md` · `docs/SERVICES.md` | the data contract everyone reads | **Praneet** — others open an issue, don't edit |
 | `docs/DESIGN.md` | tokens everyone consumes | **Armaan** |
-| `frontend/src/lib/salary.ts` | fixed Salary Info calculation | **Praneet** — pure function, no Supabase |
+| `frontend/src/lib/salary.ts` | fixed Salary Info calculation | **Praneet** — pure function, no I/O |
 
 Other standing risks:
 
-- **RLS policies** are the one place AI output looks correct and silently is
-  not. Policies come out either too permissive or locking you out. Test each one
-  manually against the dev account before moving on.
+- **Access rules** are the one place AI output looks correct and silently is
+  not. Rules come out either too permissive or locking you out. Every rule has a
+  case in `backend/test/api.test.ts`; add one with each new route.
 - **Long-lived branches.** Pull from `main` every time one of your branches
   merges, or you hit a two-hour conflict at the worst possible moment.
 - **Shared AI accounts.** Several people on one account can trip rate limits.
@@ -468,7 +469,7 @@ Resolved:
 
 Still open, and each one blocks something:
 
-- ⬜ **Supabase project created and keys shared** (Praneet). Blocks every lane.
+- ☑ **Local API and database run with `npm run dev`** (Praneet).
 - ⬜ **Vercel project linked to this repo, production tracking `main`** (Armaan).
   Blocks preview-URL verification, which is how §10 gets checked.
 - ⬜ **Design tokens extracted from the reference and filled into `docs/DESIGN.md`**

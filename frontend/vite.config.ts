@@ -10,4 +10,12 @@ export default defineConfig({
     // rather than counting ../.. from a nested page folder.
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
+  server: {
+    // The local API (backend/). Same origin for the browser, so the session
+    // cookie needs no CORS setup.
+    proxy: { '/api': 'http://localhost:8787' },
+  },
+  preview: {
+    proxy: { '/api': 'http://localhost:8787' },
+  },
 })

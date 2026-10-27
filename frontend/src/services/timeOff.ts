@@ -1,17 +1,6 @@
 import { workingDaysBetween } from '@/lib/dates'
-import type { Tables } from '@/types/database'
-import type { LeaveBalances, LeaveRequest, LeaveStatus, LeaveType } from '@/types/models'
-import { ServiceError, supabaseClient, unwrap } from './client'
-
-type RequestEmployee = {
-  first_name: string
-  last_name: string
-  avatar_url: string | null
-}
-
-type RequestRow = Tables<'leave_requests'> & {
-  employees: RequestEmployee | null
-}
+import type { Employee, LeaveBalances, LeaveRequest, LeaveStatus, LeaveType } from '@/types/models'
+import { ServiceError, api, query } from './client'
 
 const isLeaveType = (value: string): value is LeaveType =>
   value === 'paid' || value === 'sick' || value === 'unpaid'
@@ -19,62 +8,30 @@ const isLeaveType = (value: string): value is LeaveType =>
 const isLeaveStatus = (value: string): value is LeaveStatus =>
   value === 'pending' || value === 'approved' || value === 'rejected'
 
-function toLeaveRequest(row: RequestRow): LeaveRequest {
+function toLeaveRequest(row: LeaveRequest): LeaveRequest {
   if (!isLeaveType(row.leave_type) || !isLeaveStatus(row.status)) {
     throw new ServiceError('A leave request returned an unsupported type or status.')
   }
-  return {
-    id: row.id,
-    employee_id: row.employee_id,
-    employee_name: row.employees
-      ? `${row.employees.first_name} ${row.employees.last_name}`
-      : 'Unknown employee',
-    avatar_url: row.employees?.avatar_url ?? null,
-    leave_type: row.leave_type,
-    start_date: row.start_date,
-    end_date: row.end_date,
-    days: row.days,
-    remarks: row.remarks,
-    attachment_url: row.attachment_url,
-    status: row.status,
-    reviewed_by: row.reviewed_by,
-    review_comment: row.review_comment,
-    created_at: row.created_at,
-  }
-}
-
-const requestSelection = `
-  *,
-  employees!leave_requests_employee_id_fkey(first_name, last_name, avatar_url)
-`
-
-async function requestById(id: string): Promise<LeaveRequest> {
-  const { data, error } = await supabaseClient()
-    .from('leave_requests')
-    .select(requestSelection)
-    .eq('id', id)
-    .single()
-  const row = unwrap({ data, error }, 'Could not load that leave request.')
-  return toLeaveRequest(row)
+  return row
 }
 
 export async function myBalances(employeeId: string): Promise<LeaveBalances> {
-  const { data, error } = await supabaseClient()
-    .from('employees')
-    .select('paid_leave_balance, sick_leave_balance')
-    .eq('id', employeeId)
-    .single()
-  const employee = unwrap({ data, error }, 'Could not load your leave balances.')
+  const { employee } = await api<{ employee: Employee }>(
+    'GET',
+    `/employees/${encodeURIComponent(employeeId)}`,
+    undefined,
+    'Could not load your leave balances.',
+  )
   return { paid: employee.paid_leave_balance, sick: employee.sick_leave_balance }
 }
 
 export async function myRequests(employeeId: string): Promise<LeaveRequest[]> {
-  const { data, error } = await supabaseClient()
-    .from('leave_requests')
-    .select(requestSelection)
-    .eq('employee_id', employeeId)
-    .order('created_at', { ascending: false })
-  const rows = unwrap({ data, error }, 'Could not load your leave requests.')
+  const rows = await api<LeaveRequest[]>(
+    'GET',
+    `/leave${query({ employeeId })}`,
+    undefined,
+    'Could not load your leave requests.',
+  )
   return rows.map(toLeaveRequest)
 }
 
@@ -93,26 +50,28 @@ export async function createRequest(input: {
     throw new ServiceError('That range contains no working days.')
   }
 
-  const { data, error } = await supabaseClient().rpc('create_leave_request', {
-    p_leave_type: input.leave_type,
-    p_start_date: input.start_date,
-    p_end_date: input.end_date,
-    p_remarks: input.remarks.trim() || undefined,
-    p_attachment_url: input.attachment_url || undefined,
-  })
-  const created = unwrap({ data, error }, 'Could not submit that leave request.')
-  return requestById(created.id)
+  const created = await api<LeaveRequest>(
+    'POST',
+    '/leave',
+    {
+      leave_type: input.leave_type,
+      start_date: input.start_date,
+      end_date: input.end_date,
+      remarks: input.remarks.trim() || undefined,
+      attachment_url: input.attachment_url || undefined,
+    },
+    'Could not submit that leave request.',
+  )
+  return toLeaveRequest(created)
 }
 
 export async function cancelRequest(id: string): Promise<void> {
-  const { data, error } = await supabaseClient()
-    .from('leave_requests')
-    .delete()
-    .eq('id', id)
-    .select('id')
-    .maybeSingle()
-  if (error) throw new ServiceError(error.message, error)
-  if (!data) throw new ServiceError('Only your own pending request can be cancelled.')
+  await api(
+    'DELETE',
+    `/leave/${encodeURIComponent(id)}`,
+    undefined,
+    'Only your own pending request can be cancelled.',
+  )
 }
 
 export async function pendingRequests(): Promise<LeaveRequest[]> {
@@ -122,78 +81,66 @@ export async function pendingRequests(): Promise<LeaveRequest[]> {
 export async function allRequests(
   opts: { search?: string; status?: LeaveStatus | 'all' } = {},
 ): Promise<LeaveRequest[]> {
-  let query = supabaseClient()
-    .from('leave_requests')
-    .select(requestSelection)
-    .order('created_at', { ascending: false })
-
-  if (opts.status && opts.status !== 'all') query = query.eq('status', opts.status)
-
-  const { data, error } = await query
-  const requests = unwrap({ data, error }, 'Could not load company leave requests.')
-    .map(toLeaveRequest)
+  const requests = (await api<LeaveRequest[]>(
+    'GET',
+    `/leave${query({ status: opts.status })}`,
+    undefined,
+    'Could not load company leave requests.',
+  )).map(toLeaveRequest)
   const search = opts.search?.trim().toLowerCase() ?? ''
   return search
     ? requests.filter((request) => request.employee_name.toLowerCase().includes(search))
     : requests
 }
 
-/** Reviewer identity and balance movement are derived and enforced by the RPC. */
+/** Reviewer identity and balance movement are derived and enforced by the server. */
 export async function reviewRequest(
   id: string,
   status: Extract<LeaveStatus, 'approved' | 'rejected'>,
   comment?: string,
 ): Promise<LeaveRequest> {
-  const { data, error } = await supabaseClient().rpc('review_leave_request', {
-    p_request_id: id,
-    p_status: status,
-    p_comment: comment?.trim() || undefined,
-  })
-  const reviewed = unwrap({ data, error }, 'Could not record that leave decision.')
-  return requestById(reviewed.id)
+  const reviewed = await api<LeaveRequest>(
+    'POST',
+    `/leave/${encodeURIComponent(id)}/review`,
+    { status, comment: comment?.trim() || undefined },
+    'Could not record that leave decision.',
+  )
+  return toLeaveRequest(reviewed)
 }
 
-const ATTACHMENT_TYPES: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-}
+const ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 
+/** Stores a private leave document and returns its object path. */
 export async function uploadAttachment(file: File): Promise<string> {
-  const extension = ATTACHMENT_TYPES[file.type]
-  if (!extension) throw new ServiceError('Use a PDF, JPG, or PNG certificate.')
+  if (!ATTACHMENT_TYPES.includes(file.type)) throw new ServiceError('Use a PDF, JPG, or PNG certificate.')
   if (file.size > 10 * 1024 * 1024) {
     throw new ServiceError('The certificate must be 10 MB or smaller.')
   }
 
-  const client = supabaseClient()
-  const { data: userData, error: userError } = await client.auth.getUser()
-  if (userError || !userData.user) throw new ServiceError('Sign in before uploading a certificate.')
-  const { data: employee, error: employeeError } = await client
-    .from('employees')
-    .select('company_id')
-    .eq('id', userData.user.id)
-    .single()
-  if (employeeError || !employee) throw new ServiceError('Could not resolve your company.')
-
-  const path = `${employee.company_id}/${userData.user.id}/${crypto.randomUUID()}.${extension}`
-  const { error } = await client.storage.from('leave-documents').upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-  })
-  if (error) throw new ServiceError('Could not upload that certificate.', error)
+  const form = new FormData()
+  form.append('file', file)
+  const { path } = await api<{ path: string }>(
+    'POST',
+    '/uploads/leave-documents',
+    form,
+    'Could not upload that certificate.',
+  )
   return path
 }
 
+/**
+ * The document URL. The server checks the viewer's session on every open, so
+ * the link only works for the owner and Admin/HR in the same company.
+ */
 export async function signedAttachmentUrl(path: string): Promise<string> {
-  const { data, error } = await supabaseClient()
-    .storage
-    .from('leave-documents')
-    .createSignedUrl(path, 60)
-  return unwrap({ data, error }, 'Could not open that certificate.').signedUrl
+  return `/api/files/leave-documents/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 
 export async function deleteAttachment(path: string): Promise<void> {
-  const { error } = await supabaseClient().storage.from('leave-documents').remove([path])
-  if (error) throw new ServiceError('Could not clean up that certificate.', error)
+  await api(
+    'DELETE',
+    `/uploads/leave-documents?path=${encodeURIComponent(path)}`,
+    undefined,
+    'Could not clean up that certificate.',
+  )
 }
