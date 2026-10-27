@@ -9,6 +9,17 @@ export class ServiceError extends Error {
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null
+
+/**
+ * Called when the server says the session is gone (expired, password changed
+ * elsewhere, account deactivated), so the app can return to sign-in instead of
+ * showing an error on every page. `services/auth.ts` registers it.
+ */
+export function onUnauthorized(handler: () => void): void {
+  unauthorizedHandler = handler
+}
+
 /**
  * The one way services reach the backend. Requests go to `/api` on the same
  * origin (Vite proxies it to the local API), so the session cookie rides along
@@ -38,6 +49,8 @@ export async function api<T>(
 
   const payload: unknown = await response.json().catch(() => null)
   if (!response.ok) {
+    // A 401 from sign-in is just a wrong password, not a lost session.
+    if (response.status === 401 && path !== '/auth/signin') unauthorizedHandler?.()
     const message =
       payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'
         ? payload.message

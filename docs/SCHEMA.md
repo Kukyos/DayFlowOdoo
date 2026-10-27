@@ -65,6 +65,7 @@ salary-component or leave-allocation tables.
 | `monthly_wage` | real | The one salary input; at least ₹24,998 when set |
 | `paid_leave_balance` | real default 24 | Moved only when paid leave is approved |
 | `sick_leave_balance` | real default 7 | Moved only when sick leave is approved |
+| `resume_path`, `resume_name`, `resume_uploaded_at` | text | Private résumé in the `resumes` store; path must be in the employee's own folder |
 | `is_active` | 0/1 default 1 | Soft deactivation |
 | `must_change_password` | 0/1 default 0 | Set for HR-created accounts until the temporary password is replaced |
 | `created_at` | text | |
@@ -98,7 +99,9 @@ One row per employee per work date (`unique (employee_id, work_date)`).
 | `status` | text default `present` | `present`, `half_day`, `absent`, or `leave` |
 | `created_at` | text | |
 
-`work_hours` is derived at read time from `check_out - check_in`.
+`work_hours` is derived at read time from `check_out - check_in`. Attendance
+counts start at the employee's `date_of_joining`, and today is not counted as an
+absence before the day is over.
 
 ## `leave_requests`
 
@@ -110,11 +113,15 @@ One row per employee per work date (`unique (employee_id, work_date)`).
 | `start_date` / `end_date` | text date | Inclusive; end ≥ start |
 | `days` | real > 0 | Weekdays in the range, counted by the server |
 | `remarks` | text | |
-| `attachment_url` | text | Object path in the private `leave-documents` store |
+| `attachment_url` | text | Object path in the private `leave-documents` store; must be the requester's own upload, and is deleted when the request is cancelled |
 | `status` | text default `pending` | `pending`, `approved`, or `rejected` |
 | `reviewed_by` | text | → `employees(id)`; set exactly when the status is decided |
 | `review_comment` | text | |
 | `created_at` | text | |
+
+A new request may not overlap the employee's own pending or approved requests,
+and a request is never approved over days already covered by approved leave —
+so a balance can never be charged twice for the same day.
 
 ## `notifications`
 
@@ -136,13 +143,14 @@ the company attendance register all use `presenceSql()` in
 | company | read own | read and update own |
 | employee full record | own only | anyone in the company |
 | directory (safe columns + presence) | own company | own company |
-| employee update | own safe fields: about, skills, mobile, address, avatar, date of birth, bank/IFSC/PAN/UAN | also names, job, department, location, manager, joining date, wage, role, balances — never id, company, sign-in email, or password flag |
-| create / deactivate employee | — | own company; never deactivate yourself |
+| employee update | own safe fields: about, skills, mobile, address, avatar, date of birth, bank/IFSC/PAN/UAN, résumé | also names, job, department, location, manager (no loops), joining date, wage, role (not your own), balances — never id, company, sign-in email, or password flag |
+| create / deactivate / reactivate employee | — | own company; never deactivate yourself |
+| reset a password | — | anyone else in the company: issues a one-time temporary password and signs them out |
 | attendance | own rows; check in/out today only | read company rows and the day register |
 | leave requests | own; create; cancel own pending | read company; approve/reject once |
 | notifications | own; mark read | own; mark read |
 | avatars, company logos | public to read; upload own avatar | upload any avatar / logo |
-| leave documents | own only | anyone in the company |
+| leave documents, résumés | own only | anyone in the company |
 
 Every rule has a case in `backend/test/api.test.ts`.
 
@@ -150,8 +158,9 @@ Every rule has a case in `backend/test/api.test.ts`.
 
 Uploads are stored on disk at `backend/uploads/<bucket>/<company-id>/...`.
 Avatars (JPG/PNG/WebP, 5 MB) and company logos (also SVG, 5 MB) are served
-publicly at `/api/files/<bucket>/...`. Leave documents (PDF/JPG/PNG, 10 MB) are
-served from the same path only after the session check above.
+publicly at `/api/files/<bucket>/...`. Leave documents (PDF/JPG/PNG, 10 MB) and
+résumés (PDF/DOC/DOCX, 5 MB) are served from the same path only after the
+session check above. Upload bodies over 11 MB are refused before they are read.
 
 ## Seed data
 
@@ -164,4 +173,4 @@ and pending, approved and rejected leave. Every account's password is
 
 Departments, skills, certifications, leave types and allocations, salary
 structures/components, payroll runs, payslip history, holidays, attendance
-corrections, configurable payroll formulas, résumé file storage, and email.
+corrections, configurable payroll formulas, and email.

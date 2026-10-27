@@ -68,13 +68,19 @@ export function endSession(c: AppContext): void {
 export function sessionUser(c: AppContext): { id: string; email: string; token: string } | null {
   const token = getCookie(c, SESSION_COOKIE)
   if (!token) return null
-  const row = one<{ id: string; email: string }>(
-    `select users.id, users.email
+  const row = one<{ id: string; email: string; created_at: string }>(
+    `select users.id, users.email, sessions.created_at
      from sessions join users on users.id = sessions.user_id
      where sessions.token = ?`,
     token,
   )
-  return row ? { ...row, token } : null
+  if (!row) return null
+  // The cookie expires on its own; the row has to be retired here.
+  if (Date.now() - Date.parse(row.created_at) > SESSION_MAX_AGE * 1000) {
+    run('delete from sessions where token = ?', token)
+    return null
+  }
+  return { id: row.id, email: row.email, token }
 }
 
 export function activeEmployee(id: string): EmployeeRecord | null {

@@ -2,12 +2,12 @@
   "name": "dayflow",
   "private": true,
   "version": "0.0.0",
-  "description": "Dayflow HRMS — React frontend and a local TypeScript + SQLite API.",
+  "description": "Dayflow HRMS \u2014 React frontend and a local TypeScript + SQLite API.",
   "scripts": {
     "setup": "npm install && npm --prefix backend install && npm --prefix frontend install",
     "dev": "concurrently --names api,web --prefix-colors green,blue \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "db:reset": "npm --prefix backend run db:reset",
-    "test": "npm --prefix backend test && node --experimental-strip-types frontend/src/lib/salary.test.ts",
+    "test": "npm --prefix backend test && node --experimental-strip-types frontend/src/lib/salary.test.ts && node --experimental-strip-types frontend/src/lib/team.test.ts",
     "check": "npm --prefix backend run typecheck && npm --prefix frontend run lint && npm --prefix frontend run build"
   },
   "devDependencies": {

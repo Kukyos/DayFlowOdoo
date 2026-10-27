@@ -18,22 +18,27 @@ dashboardRoutes.get('/', (c) => {
   const me = c.var.me
   const today = todayIST()
 
+  // Count from the 1st, or from the joining date for someone who started this
+  // month — days before they worked here are not absences.
+  const monthStart = `${today.slice(0, 8)}01`
+  const from = me.date_of_joining && me.date_of_joining > monthStart ? me.date_of_joining : monthStart
   const records = new Map(
     all<{ work_date: string; status: string }>(
       'select work_date, status from attendance where employee_id = ? and work_date between ? and ?',
-      me.id, `${today.slice(0, 8)}01`, today,
+      me.id, from, today,
     ).map((row) => [row.work_date, row.status]),
   )
   const approved = all<{ start_date: string; end_date: string }>(
     `select start_date, end_date from leave_requests
      where employee_id = ? and status = 'approved' and end_date >= ?`,
-    me.id, `${today.slice(0, 8)}01`,
+    me.id, from,
   )
   const attendance = { present: 0, absent: 0, half_day: 0, leave: 0 }
-  for (const day of weekdaysBetween(`${today.slice(0, 8)}01`, today)) {
-    const status =
-      records.get(day) ??
-      (approved.some((leave) => leave.start_date <= day && leave.end_date >= day) ? 'leave' : 'absent')
+  for (const day of from <= today ? weekdaysBetween(from, today) : []) {
+    const onLeave = approved.some((leave) => leave.start_date <= day && leave.end_date >= day)
+    const status = records.get(day) ?? (onLeave ? 'leave' : 'absent')
+    // Today is not an absence yet while there is still time to check in.
+    if (day === today && status === 'absent') continue
     attendance[status as keyof typeof attendance] += 1
   }
 

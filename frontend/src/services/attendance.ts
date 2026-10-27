@@ -39,7 +39,8 @@ export async function checkOut(): Promise<AttendanceRow> {
 
 /**
  * Reads the employee's stored rows and fills missing calendar days. Approved
- * leave explains a working-day gap; any other gap is an absence.
+ * leave explains a working-day gap; any other gap is an absence. Days before
+ * the employee's joining date are left out — they are not absences.
  */
 export async function myAttendance(
   employeeId: string,
@@ -64,7 +65,9 @@ export async function myAttendance(
       undefined,
       'Could not load leave dates for attendance.',
     ),
-    api<{ employee: { first_name: string; last_name: string; avatar_url: string | null } }>(
+    api<{
+      employee: { first_name: string; last_name: string; avatar_url: string | null; date_of_joining?: string | null }
+    }>(
       'GET',
       `/employees/${encodeURIComponent(employeeId)}`,
       undefined,
@@ -75,8 +78,10 @@ export async function myAttendance(
   const rowsByDate = new Map(rows.map((row) => [row.work_date, row]))
   const employeeName = `${profile.employee.first_name} ${profile.employee.last_name}`
   const avatarUrl = profile.employee.avatar_url
+  const joined = profile.employee.date_of_joining ?? ''
 
   return visibleDays
+    .filter((date) => date >= joined || rowsByDate.has(date))
     .map((date): AttendanceDay => {
       const row = rowsByDate.get(date)
       if (row) {
@@ -123,13 +128,25 @@ export async function companyAttendance(
   return rows.map((row) => ({ ...row, status: attendanceStatus(row.status) }))
 }
 
-export async function attendanceSummary(employeeId: string, month: string) {
-  const days = await myAttendance(employeeId, month)
-  const working = days.filter((day) => !isWeekend(day.work_date))
+export type AttendanceSummary = { present: number; absent: number; halfDay: number; leave: number }
+
+/**
+ * Working-day counts for a list of days. Today without a check-in is not
+ * counted as an absence yet — there is still time to check in.
+ */
+export function summarizeAttendance(days: AttendanceDay[]): AttendanceSummary {
+  const now = today()
+  const working = days.filter(
+    (day) => !isWeekend(day.work_date) && !(day.work_date === now && day.status === 'absent'),
+  )
   return {
     present: working.filter((day) => day.status === 'present').length,
     absent: working.filter((day) => day.status === 'absent').length,
     halfDay: working.filter((day) => day.status === 'half_day').length,
     leave: working.filter((day) => day.status === 'leave').length,
   }
+}
+
+export async function attendanceSummary(employeeId: string, month: string): Promise<AttendanceSummary> {
+  return summarizeAttendance(await myAttendance(employeeId, month))
 }

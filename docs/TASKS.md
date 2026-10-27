@@ -102,7 +102,7 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | 3.7 | **Attendance — admin view**, all employees for one day, date stepper, search | Athira | ◐ guarded live RPC wired; signed-in Admin/HR browser verification remains |
 | 3.8 | **Time Off — employee view**: balance cards, request form (type, date range, remarks, attachment for sick leave), own request list with status | Pooja | ◐ live balances/request/cancel and private attachment upload wired; signed-in browser verification remains |
 | 3.8a | **Time Off — full year calendar view**, matching the reference wireframe: 12-month grid, status legend (approved/pending/rejected), static public-holiday list, year stepper. Toggle alongside the existing List view | Armaan | ☑ |
-| 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ◐ live company reads and approve/reject wired; comment-entry UI and signed-in browser verification remain |
+| 3.9 | **Time Off — admin view**: all requests, search, filter, approve / reject with a comment | Pooja | ☑ review dialog with comment, balance check and certificate |
 | 3.10 | **Add Employee** (privileged) — form and server-side account creation. Use work email for sign-in and show the temporary password once; balances and wage live on the employee row | Athira | ☑ server-side creation and one-time credential result wired |
 | 3.11 | **Dashboard** — employee: quick cards for profile, attendance, leave, plus today's status. Admin: headcount, present today, pending approvals, recent activity | Pooja | ◐ guarded single-RPC live summary wired and two-role API tested; visible browser verification remains |
 | 3.12 | **Change password** — normal account setting and mandatory first-login flow for HR-created employees | Athira | ◐ page, Auth update, database trigger, and route enforcement implemented; live forced-flow browser verification remains |
@@ -112,7 +112,7 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | # | Feature | Owner | Done |
 |---|---|---|---|
 | 3.13 | Search and filter across the directory, attendance and time off | | ☐ |
-| 3.14 | Team / reporting tree from `manager_id` | | ☐ |
+| 3.14 | Team / reporting tree from `manager_id` | Praneet | ☑ directory Team view; manager and direct reports on profiles |
 
 ### Tier 3 — only if 1 and 2 are polished
 
@@ -121,7 +121,9 @@ from sign-up to the last screen, (5) this page list with tiers agreed.
 | 3.18 | Analytics dashboard — attendance trend, leave usage, headcount by department | | ☐ |
 | 3.19 | Attendance calendar view | | ☐ |
 | 3.20 | Company settings — name, logo, time-off types, working schedule | Praneet | ◐ backend schema, access rules, and service complete; settings page remains |
-| 3.21 | In-app notifications on leave approval | Praneet | ◐ secure notification creation/read API complete; notification UI remains |
+| 3.21 | In-app notifications on leave approval | Praneet | ☑ header bell with unread count |
+| 3.22 | Admin/HR edit work details, reset a forgotten password, reactivate deactivated employees | Praneet | ☑ |
+| 3.23 | Résumé files stored privately (owner and Admin/HR) | Praneet | ☑ |
 
 ## Stage 4 — Real backend wiring
 

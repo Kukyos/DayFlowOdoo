@@ -7,7 +7,7 @@
  */
 import { hashPassword } from './auth.ts'
 import { newId, run, tx } from './db.ts'
-import { addDays, istInstant, todayIST, weekdaysBetween, workingDaysBetween } from './dates.ts'
+import { addDays, formatDay, istInstant, todayIST, weekdaysBetween, workingDaysBetween } from './dates.ts'
 
 export const DEMO_PASSWORD = 'DayflowDemo7!'
 
@@ -210,7 +210,7 @@ export function seed(): void {
            values (?, ?, ?, ?, ?, ?, ?)`,
           newId(), request.employee, `leave_${request.status}`,
           request.status === 'approved' ? 'Time off approved' : 'Time off declined',
-          `Your ${request.type} leave request from ${request.start} to ${request.end} was ${request.status}.`,
+          `Your ${request.type} leave request from ${formatDay(request.start)} to ${formatDay(request.end)} was ${request.status}.`,
           request.id, request.created,
         )
       }

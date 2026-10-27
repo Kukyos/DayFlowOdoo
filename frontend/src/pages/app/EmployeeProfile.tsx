@@ -7,7 +7,9 @@ import {
   ErrorState,
   Field,
   Input,
+  Modal,
   PageHeader,
+  Select,
   Spinner,
   Tabs,
   Textarea,
@@ -22,11 +24,13 @@ import {
   deactivateEmployee,
   deleteAvatar,
   getEmployee,
+  listEmployees,
+  resetEmployeePassword,
   updateEmployee,
   uploadAvatar,
 } from '@/services/employees'
-import { fullName, isFullEmployee } from '@/types/models'
-import type { DirectoryEmployee, Employee } from '@/types/models'
+import { PRESENCE_LABEL, fullName, isFullEmployee } from '@/types/models'
+import type { DirectoryEmployee, Employee, EmployeeProfile as Profile, Role } from '@/types/models'
 
 /**
  * One page for three cases: my own profile, a coworker's profile, and an
@@ -59,6 +63,8 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
     <ProfileBody
       employee={data.employee}
       presence={data.presence}
+      manager={data.manager ?? null}
+      reports={data.reports ?? []}
       isSelf={data.employee.id === me?.id}
       isPrivileged={isPrivileged}
       actionError={actionError}
@@ -83,6 +89,8 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 function ProfileBody({
   employee,
   presence,
+  manager,
+  reports,
   isSelf,
   isPrivileged,
   actionError,
@@ -91,6 +99,8 @@ function ProfileBody({
 }: {
   employee: Employee | DirectoryEmployee
   presence: 'present' | 'leave' | 'absent'
+  manager: Profile['manager'] | null
+  reports: DirectoryEmployee[]
   isSelf: boolean
   isPrivileged: boolean
   actionError: string | null
@@ -114,6 +124,7 @@ function ProfileBody({
   }, [employee])
 
   const [tab, setTab] = useState('work')
+  const [resetting, setResetting] = useState(false)
   const active = tabs.some((t) => t.id === tab) ? tab : 'work'
 
   return (
@@ -128,9 +139,14 @@ function ProfileBody({
           !isSelf && (
             <div className="flex gap-2">
               {isPrivileged && isFullEmployee(employee) && employee.is_active && (
-                <Button size="sm" variant="danger" onClick={() => { void onDeactivate() }}>
-                  Deactivate
-                </Button>
+                <>
+                  <Button size="sm" onClick={() => setResetting(true)}>
+                    Reset password
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => { void onDeactivate() }}>
+                    Deactivate
+                  </Button>
+                </>
               )}
               <Link to="/employees">
                 <Button size="sm">Back to directory</Button>
@@ -141,6 +157,8 @@ function ProfileBody({
       />
 
       {actionError && <p role="alert" className="mb-4 t-caption text-danger-ink">{actionError}</p>}
+
+      {resetting && <ResetPasswordModal employee={employee} onClose={() => setResetting(false)} />}
 
       <Card className="mb-8">
         <div className="flex flex-wrap items-center gap-5">
@@ -153,11 +171,11 @@ function ProfileBody({
           <div className="min-w-0">
             <p className="t-h2">{fullName(employee)}</p>
             <p className="t-caption mt-1 text-text-muted">
-              {employee.job_position} · {employee.location}
+              {[employee.job_position, employee.location].filter(Boolean).join(' · ') || 'No position set'}
             </p>
           </div>
           <div className="ml-auto flex flex-col items-end gap-2">
-            <span className="t-label text-text-muted">{presence === 'present' ? 'In today' : presence === 'leave' ? 'On leave' : 'Not in today'}</span>
+            <span className="t-label text-text-muted">{PRESENCE_LABEL[presence]}</span>
             {isFullEmployee(employee) && employee.date_of_joining && (
               <span className="t-caption text-text-muted">
                 Joined {formatDate(employee.date_of_joining)}
@@ -170,7 +188,16 @@ function ProfileBody({
       <Tabs tabs={tabs} active={active} onChange={setTab} />
 
       <div className="py-8">
-        {active === 'work' && <WorkInfo employee={employee} />}
+        {active === 'work' && (
+          <WorkInfo
+            employee={employee}
+            manager={manager}
+            reports={reports}
+            editable={isPrivileged && isFullEmployee(employee)}
+            isSelf={isSelf}
+            onSaved={onSaved}
+          />
+        )}
         {active === 'resume' && (
           <Resume employee={employee} editable={isSelf} onSaved={onSaved} />
         )}
@@ -233,20 +260,281 @@ const Row = ({ label, value }: { label: string; value: string | null | undefined
   </div>
 )
 
-function WorkInfo({ employee }: { employee: Employee | DirectoryEmployee }) {
+function WorkInfo({
+  employee,
+  manager,
+  reports,
+  editable,
+  isSelf,
+  onSaved,
+}: {
+  employee: Employee | DirectoryEmployee
+  manager: Profile['manager'] | null
+  reports: DirectoryEmployee[]
+  editable: boolean
+  isSelf: boolean
+  onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
+      {editing && isFullEmployee(employee) ? (
+        <WorkInfoForm
+          employee={employee}
+          isSelf={isSelf}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false)
+            onSaved()
+          }}
+        />
+      ) : (
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="t-h3">Work</h2>
+            {editable && (
+              <Button size="sm" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+            )}
+          </div>
+          <Row label="Job position" value={employee.job_position} />
+          <Row label="Department" value={employee.department} />
+          <Row label="Location" value={employee.location} />
+          <Row label="Work email" value={employee.work_email} />
+          {isFullEmployee(employee) && <Row label="Mobile" value={employee.mobile} />}
+          {isFullEmployee(employee) && (
+            <Row label="Access level" value={ROLE_LABEL[employee.role]} />
+          )}
+          <div className="flex flex-col gap-1 border-b border-border-soft py-3 sm:flex-row sm:items-baseline sm:gap-6">
+            <span className="t-label w-52 shrink-0 text-text-muted">Manager</span>
+            {manager ? (
+              <Link to={`/employees/${manager.id}`} className="t-body underline underline-offset-4">
+                {fullName(manager)}
+              </Link>
+            ) : (
+              <span className="t-body text-text-muted">No manager on record</span>
+            )}
+          </div>
+        </Card>
+      )}
+
       <Card>
-        <h2 className="t-h3 mb-3">Work</h2>
-        <Row label="Job position" value={employee.job_position} />
-        <Row label="Department" value={employee.department} />
-        <Row label="Location" value={employee.location} />
-        <Row label="Work email" value={employee.work_email} />
-        {isFullEmployee(employee) && <Row label="Mobile" value={employee.mobile} />}
-        <Row label="Manager" value={employee.manager_id ? 'Assigned' : 'No manager on record'} />
+        <h2 className="t-h3 mb-3">Direct reports</h2>
+        {reports.length === 0 ? (
+          <p className="t-caption text-text-muted">Nobody reports to {isSelf ? 'you' : employee.first_name}.</p>
+        ) : (
+          <ul>
+            {reports.map((report) => (
+              <li key={report.id} className="border-b border-border-soft last:border-0">
+                <Link to={`/employees/${report.id}`} className="flex items-center gap-3 py-2.5 hover:underline">
+                  <Avatar name={fullName(report)} src={report.avatar_url} size={30} />
+                  <span className="t-caption">{fullName(report)}</span>
+                  <span className="t-label ml-auto font-normal normal-case text-text-muted">
+                    {report.job_position}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
+  )
+}
+
+const ROLE_LABEL: Record<Role, string> = {
+  admin: 'Admin',
+  hr: 'HR officer',
+  employee: 'Employee',
+}
+
+/** Admin/HR edit someone's work details. The server enforces the same boundary. */
+function WorkInfoForm({
+  employee,
+  isSelf,
+  onCancel,
+  onSaved,
+}: {
+  employee: Employee
+  isSelf: boolean
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState({
+    first_name: employee.first_name,
+    last_name: employee.last_name,
+    job_position: employee.job_position ?? '',
+    department: employee.department ?? '',
+    location: employee.location ?? '',
+    manager_id: employee.manager_id ?? '',
+    date_of_joining: employee.date_of_joining ?? '',
+    role: employee.role,
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const colleagues = useAsync(() => listEmployees(), [])
+
+  const set = (key: keyof typeof form) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((current) => ({ ...current, [key]: event.target.value }))
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault()
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      setError('Enter the full name.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await updateEmployee(employee.id, {
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        job_position: form.job_position.trim() || null,
+        department: form.department.trim() || null,
+        location: form.location.trim() || null,
+        manager_id: form.manager_id || null,
+        date_of_joining: form.date_of_joining || null,
+        // Your own access level is not yours to change; leave it out entirely.
+        ...(isSelf ? {} : { role: form.role }),
+      })
+      onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save the work details.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="t-h3 mb-4">Edit work details</h2>
+      <form onSubmit={save} className="flex flex-col gap-4">
+        {error && <p role="alert" className="t-caption text-danger-ink">{error}</p>}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="First name" htmlFor="work-first-name">
+            <Input id="work-first-name" value={form.first_name} onChange={set('first_name')} />
+          </Field>
+          <Field label="Last name" htmlFor="work-last-name">
+            <Input id="work-last-name" value={form.last_name} onChange={set('last_name')} />
+          </Field>
+        </div>
+        <Field label="Job position" htmlFor="work-position">
+          <Input id="work-position" value={form.job_position} onChange={set('job_position')} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Department" htmlFor="work-department">
+            <Input id="work-department" value={form.department} onChange={set('department')} />
+          </Field>
+          <Field label="Location" htmlFor="work-location">
+            <Input id="work-location" value={form.location} onChange={set('location')} />
+          </Field>
+        </div>
+        <Field label="Manager" htmlFor="work-manager">
+          <Select id="work-manager" value={form.manager_id} onChange={set('manager_id')}>
+            <option value="">No manager</option>
+            {(colleagues.data ?? [])
+              .filter((person) => person.id !== employee.id)
+              .map((person) => (
+                <option key={person.id} value={person.id}>
+                  {fullName(person)}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field label="Date of joining" htmlFor="work-joining">
+          <Input id="work-joining" type="date" value={form.date_of_joining} onChange={set('date_of_joining')} />
+        </Field>
+        {!isSelf && (
+          <Field
+            label="Access level"
+            htmlFor="work-role"
+            hint="HR and admin can see every salary. Choose carefully."
+          >
+            <Select id="work-role" value={form.role} onChange={set('role')}>
+              <option value="employee">Employee</option>
+              <option value="hr">HR officer</option>
+              <option value="admin">Admin</option>
+            </Select>
+          </Field>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" variant="strong" disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+          <Button type="button" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
+  )
+}
+
+/**
+ * Admin/HR issue a new one-time password. There is no email, so this is how a
+ * forgotten password is recovered. Shown once, like at account creation.
+ */
+function ResetPasswordModal({
+  employee,
+  onClose,
+}: {
+  employee: Employee | DirectoryEmployee
+  onClose: () => void
+}) {
+  const [password, setPassword] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function reset() {
+    setBusy(true)
+    setError(null)
+    try {
+      setPassword(await resetEmployeePassword(employee.id))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not reset that password.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Reset ${fullName(employee)}'s password`}>
+      {password ? (
+        <>
+          <p className="t-label text-text-muted">Sign-in email</p>
+          <p className="mt-1 text-lg font-semibold">{employee.work_email}</p>
+          <p className="t-label mt-5 text-text-muted">Temporary password</p>
+          <p className="t-data mt-1 text-2xl">{password}</p>
+          <p className="t-caption mt-5 rounded-control border border-danger-ink px-3 py-2 text-danger-ink">
+            Copy it now — it is shown once and cannot be retrieved. {employee.first_name} must choose a new
+            password at their next sign-in.
+          </p>
+          <div className="mt-5 flex justify-end">
+            <Button variant="strong" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="t-body">
+            {employee.first_name}&apos;s current password stops working immediately and they are signed out
+            everywhere. You will get a one-time temporary password to give them.
+          </p>
+          {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
+          <div className="mt-5 flex justify-end gap-2">
+            <Button onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => { void reset() }} disabled={busy}>
+              {busy ? 'Resetting…' : 'Reset password'}
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
   )
 }
 
@@ -296,9 +584,12 @@ function Resume({
             <SkillList skills={employee.skills} />
           </Card>
         </div>
-        <Card>
-          <ResumeUpload employeeId={employee.id} editable={false} />
-        </Card>
+        {/* The résumé is private to the employee and Admin/HR; a coworker never gets a full record. */}
+        {isFullEmployee(employee) && (
+          <Card>
+            <ResumeUpload employee={employee} editable={false} />
+          </Card>
+        )}
       </div>
     )
   }
@@ -335,9 +626,11 @@ function Resume({
         </div>
       </Card>
       </div>
-      <Card>
-        <ResumeUpload employeeId={employee.id} editable={editable} />
-      </Card>
+      {isFullEmployee(employee) && (
+        <Card>
+          <ResumeUpload employee={employee} editable={editable} />
+        </Card>
+      )}
     </div>
   )
 }
@@ -375,10 +668,12 @@ function PrivateInfo({
   const [bankAccountNumber, setBankAccountNumber] = useState(employee.bank_account_number ?? '')
   const [ifscCode, setIfscCode] = useState(employee.ifsc_code ?? '')
   const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true)
+    setSaved(false)
     setError(null)
     try {
       await updateEmployee(employee.id, {
@@ -390,6 +685,7 @@ function PrivateInfo({
         bank_account_number: bankAccountNumber.trim() || null,
         ifsc_code: ifscCode.trim() || null,
       })
+      setSaved(true)
       onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save private information.')
@@ -433,9 +729,12 @@ function PrivateInfo({
                 onChange={(e) => setAddress(e.target.value)}
               />
             </Field>
-            <Button variant="strong" className="mt-4" onClick={save} disabled={busy}>
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
+            <div className="mt-4 flex items-center gap-3">
+              <Button variant="strong" onClick={save} disabled={busy}>
+                {busy ? 'Saving…' : 'Save'}
+              </Button>
+              {saved && <span className="t-caption text-text-muted">Saved, including bank details.</span>}
+            </div>
             {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
           </>
         ) : (
@@ -528,7 +827,7 @@ function SalaryInfo({
                 htmlFor="wage"
                 hint="Every component below is derived from this one figure."
                 error={
-                  breakdown.isValid
+                  breakdown.isValid || !wage
                     ? null
                     : `Too low for this structure — the fixed components alone exceed it. Minimum is ${formatRupees(MINIMUM_WAGE)}.`
                 }
@@ -558,7 +857,9 @@ function SalaryInfo({
             </>
           ) : (
             <>
-              <p className="t-data text-3xl">{formatRupees(wage)}</p>
+              <p className="t-data text-3xl">
+                {employee.monthly_wage === null ? 'No wage set yet' : formatRupees(wage)}
+              </p>
               <p className="t-caption mt-2 text-text-muted">
                 Your wage is set by HR. Everything below is derived from it.
               </p>

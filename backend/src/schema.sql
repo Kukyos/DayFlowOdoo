@@ -57,6 +57,9 @@ create table if not exists employees (
   monthly_wage real check (monthly_wage is null or monthly_wage >= 24998),
   paid_leave_balance real not null default 24 check (paid_leave_balance >= 0),
   sick_leave_balance real not null default 7 check (sick_leave_balance >= 0),
+  resume_path text,
+  resume_name text,
+  resume_uploaded_at text,
   is_active integer not null default 1,
   must_change_password integer not null default 0,
   created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

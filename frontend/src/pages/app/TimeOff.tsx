@@ -34,7 +34,7 @@ import {
   uploadAttachment,
 } from '@/services/timeOff'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
-import type { LeaveStatus, LeaveType } from '@/types/models'
+import type { LeaveRequest, LeaveStatus, LeaveType } from '@/types/models'
 
 export function TimeOff() {
   const { isPrivileged } = useSession()
@@ -92,9 +92,20 @@ function MyTimeOff() {
     return { balances, requests }
   }, [employee?.id])
 
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState<string | null>(null)
+
   async function cancel(id: string) {
-    await cancelRequest(id)
-    reload()
+    setCancelling(id)
+    setCancelError(null)
+    try {
+      await cancelRequest(id)
+      reload()
+    } catch (cause) {
+      setCancelError(cause instanceof Error ? cause.message : 'Could not cancel that request.')
+    } finally {
+      setCancelling(null)
+    }
   }
 
   return (
@@ -119,6 +130,12 @@ function MyTimeOff() {
               </Button>
             </Card>
           </div>
+
+          {cancelError && (
+            <p role="alert" className="mb-4 t-caption text-danger-ink">
+              {cancelError}
+            </p>
+          )}
 
           <div className="mb-5 flex justify-end gap-2">
             <Button
@@ -178,8 +195,13 @@ function MyTimeOff() {
                   </Td>
                   <Td right>
                     {r.status === 'pending' && (
-                      <Button size="sm" variant="danger" onClick={() => cancel(r.id)}>
-                        Cancel
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={cancelling === r.id}
+                        onClick={() => { void cancel(r.id) }}
+                      >
+                        {cancelling === r.id ? 'Cancelling…' : 'Cancel'}
                       </Button>
                     )}
                   </Td>
@@ -195,7 +217,7 @@ function MyTimeOff() {
         onClose={() => setOpen(false)}
         onCreated={() => {
           reload()
-        void refreshEmployee()
+          void refreshEmployee()
         }}
       />
     </>
@@ -349,31 +371,12 @@ function Approvals() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending')
   const q = useDebounced(search)
-  const [acting, setActing] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<LeaveRequest | null>(null)
 
   const { status, data, error: loadError, reload } = useAsync(
     () => allRequests({ search: q, status: filter }),
     [q, filter],
   )
-
-  async function review(id: string, decision: 'approved' | 'rejected') {
-    const comment = window.prompt(
-      decision === 'approved' ? 'Approval comment (optional)' : 'Rejection comment (optional)',
-    )
-    if (comment === null) return
-    setActing(id)
-    setError(null)
-    try {
-      await reviewRequest(id, decision, comment)
-      reload()
-      void refreshEmployee()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not record that decision.')
-    } finally {
-      setActing(null)
-    }
-  }
 
   return (
     <>
@@ -399,10 +402,16 @@ function Approvals() {
         </Select>
       </div>
 
-      {error && (
-        <p role="alert" className="mb-4 t-caption text-danger-ink">
-          {error}
-        </p>
+      {reviewing && (
+        <ReviewModal
+          request={reviewing}
+          onClose={() => setReviewing(null)}
+          onDecided={() => {
+            setReviewing(null)
+            reload()
+            void refreshEmployee()
+          }}
+        />
       )}
 
       {status === 'loading' && <Spinner label="Loading requests" />}
@@ -436,7 +445,7 @@ function Approvals() {
               <tr key={r.id}>
                 <Td>
                   <div className="flex items-center gap-3">
-                    <Avatar name={r.employee_name} size={30} />
+                    <Avatar name={r.employee_name} src={r.avatar_url} size={30} />
                     <div>
                       <p className="t-caption">{r.employee_name}</p>
                       {r.remarks && (
@@ -463,26 +472,13 @@ function Approvals() {
                 </Td>
                 <Td right>
                   {r.status === 'pending' ? (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={acting === r.id}
-                        onClick={() => review(r.id, 'rejected')}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="strong"
-                        disabled={acting === r.id}
-                        onClick={() => review(r.id, 'approved')}
-                      >
-                        Approve
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="strong" onClick={() => setReviewing(r)}>
+                      Review
+                    </Button>
                   ) : (
-                    <span className="t-label text-text-muted">Decided</span>
+                    <span className="t-label text-text-muted" title={r.review_comment ?? undefined}>
+                      Decided
+                    </span>
                   )}
                 </Td>
               </tr>
@@ -490,6 +486,99 @@ function Approvals() {
           </Table>
         ))}
     </>
+  )
+}
+
+/**
+ * One decision on one request. Shows what the reviewer needs — dates, working
+ * days, the employee's remaining balance, remarks and certificate — and an
+ * optional comment the employee sees with the outcome.
+ */
+function ReviewModal({
+  request,
+  onClose,
+  onDecided,
+}: {
+  request: LeaveRequest
+  onClose: () => void
+  onDecided: () => void
+}) {
+  const [comment, setComment] = useState('')
+  const [acting, setActing] = useState<'approved' | 'rejected' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const balances = useAsync(() => myBalances(request.employee_id), [request.employee_id])
+  const balance =
+    request.leave_type === 'paid' ? balances.data?.paid : request.leave_type === 'sick' ? balances.data?.sick : null
+
+  async function decide(decision: 'approved' | 'rejected') {
+    setActing(decision)
+    setError(null)
+    try {
+      await reviewRequest(request.id, decision, comment)
+      onDecided()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not record that decision.')
+      setActing(null)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Review ${request.employee_name}'s request`}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="rounded-control border border-danger-ink px-3 py-2 t-caption text-danger-ink">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Avatar name={request.employee_name} src={request.avatar_url} size={40} />
+          <div>
+            <p className="t-caption font-bold">{LEAVE_TYPE_LABEL[request.leave_type]}</p>
+            <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
+              {formatDate(request.start_date)} – {formatDate(request.end_date)} ·{' '}
+              {request.days} working {request.days === 1 ? 'day' : 'days'}
+            </p>
+          </div>
+        </div>
+
+        {balance !== null && (
+          <p className="t-caption text-text-muted">
+            {balances.status === 'ready' && balance !== undefined
+              ? `${balance.toFixed(2)} ${request.leave_type} days left before this request` +
+                (balance < request.days ? ' — not enough to approve it.' : '.')
+              : 'Checking the remaining balance…'}
+          </p>
+        )}
+
+        <div>
+          <p className="t-label text-text-muted">Remarks</p>
+          <p className="t-body mt-1">{request.remarks || 'No remarks.'}</p>
+          {request.attachment_url && <AttachmentLink path={request.attachment_url} />}
+        </div>
+
+        <Field label="Comment for the employee" htmlFor="review-comment" hint="Optional. Shown with the decision.">
+          <Textarea
+            id="review-comment"
+            value={comment}
+            placeholder="Approved — enjoy the break."
+            onChange={(event) => setComment(event.target.value)}
+          />
+        </Field>
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose} disabled={acting !== null}>
+            Not now
+          </Button>
+          <Button variant="danger" onClick={() => { void decide('rejected') }} disabled={acting !== null}>
+            {acting === 'rejected' ? 'Rejecting…' : 'Reject'}
+          </Button>
+          <Button variant="strong" onClick={() => { void decide('approved') }} disabled={acting !== null}>
+            {acting === 'approved' ? 'Approving…' : 'Approve'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

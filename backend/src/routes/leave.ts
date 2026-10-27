@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { canSeeFullRecord, isPrivileged, requireEmployee, requirePrivileged } from '../auth.ts'
 import { newId, one, run, tx } from '../db.ts'
 import type { Params } from '../db.ts'
-import { isISODate, workingDaysBetween } from '../dates.ts'
+import { formatDay, isISODate, workingDaysBetween } from '../dates.ts'
 import { badRequest, forbidden, jsonBody, notFound, optionalText } from '../http.ts'
 import type { AppEnv } from '../http.ts'
 import { leaveRequest, leaveRequests } from '../queries.ts'
+import { isOwnObject, removeObject } from './files.ts'
 
 export const leaveRoutes = new Hono<AppEnv>()
 
@@ -13,6 +14,15 @@ leaveRoutes.use('*', requireEmployee)
 
 const LEAVE_TYPES = ['paid', 'sick', 'unpaid']
 const STATUSES = ['pending', 'approved', 'rejected']
+
+/** Another of this employee's requests, in `statuses`, sharing at least one day with the range. */
+const overlapping = (employeeId: string, start: string, end: string, statuses: string[], exceptId = '') =>
+  one(
+    `select 1 from leave_requests
+     where employee_id = ? and id <> ? and start_date <= ? and end_date >= ?
+       and status in (${statuses.map(() => '?').join(', ')})`,
+    employeeId, exceptId, end, start, ...statuses,
+  )
 
 /**
  * With `employeeId`: that person's requests (self, or Admin/HR in the same
@@ -84,29 +94,36 @@ leaveRoutes.post('/', async (c) => {
   if (leaveType === 'sick' && days > me.sick_leave_balance) {
     throw badRequest(`Only ${me.sick_leave_balance} sick days remaining.`)
   }
+  const attachment = optionalText(body.attachment_url)
+  // Cancelling deletes the attachment, so it must be the requester's own upload.
+  if (attachment && !isOwnObject(attachment, me.company_id, me.id)) {
+    throw badRequest('Attach a certificate you uploaded yourself.')
+  }
+  // Two requests for the same day would both be approvable and deduct twice.
+  if (overlapping(me.id, start, end, ['pending', 'approved'])) {
+    throw badRequest('You already have a request covering some of those days.')
+  }
 
   const id = newId()
   run(
     `insert into leave_requests (id, employee_id, leave_type, start_date, end_date, days, remarks, attachment_url)
      values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, me.id, leaveType, start, end, days, optionalText(body.remarks), optionalText(body.attachment_url),
+    id, me.id, leaveType, start, end, days, optionalText(body.remarks), attachment,
   )
   return c.json(leaveRequest(id), 201)
 })
 
-leaveRoutes.delete('/:id', (c) => {
-  const result = run(
-    `delete from leave_requests where id = ? and employee_id = ? and status = 'pending'`,
+leaveRoutes.delete('/:id', async (c) => {
+  const request = one<{ attachment_url: string | null }>(
+    `select attachment_url from leave_requests where id = ? and employee_id = ? and status = 'pending'`,
     c.req.param('id'), c.var.me.id,
   )
-  if (result.changes === 0) throw notFound('Only your own pending request can be cancelled.')
+  if (!request) throw notFound('Only your own pending request can be cancelled.')
+  run('delete from leave_requests where id = ?', c.req.param('id'))
+  // The certificate belongs to the request; nothing else points at it.
+  if (request.attachment_url) await removeObject('leave-documents', request.attachment_url).catch(() => undefined)
   return c.json({ ok: true })
 })
-
-const formatDay = (date: string) =>
-  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
-  })
 
 /**
  * One-time decision. Approval moves the matching balance, and the decision
@@ -130,6 +147,12 @@ leaveRoutes.post('/:id/review', requirePrivileged, async (c) => {
     )
     if (!request) throw notFound('That leave request no longer exists or is outside your company.')
     if (request.status !== 'pending') throw badRequest('That leave request has already been decided.')
+    if (
+      status === 'approved' &&
+      overlapping(request.employee_id, request.start_date, request.end_date, ['approved'], id)
+    ) {
+      throw badRequest('The employee already has approved leave on some of those days.')
+    }
 
     if (status === 'approved' && request.leave_type !== 'unpaid') {
       const column = request.leave_type === 'paid' ? 'paid_leave_balance' : 'sick_leave_balance'

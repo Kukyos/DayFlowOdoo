@@ -7,7 +7,7 @@
  * changes, through `onAuthChange`.
  */
 import type { Employee } from '@/types/models'
-import { ServiceError, api } from './client'
+import { ServiceError, api, onUnauthorized } from './client'
 
 export type Session = {
   user: { id: string; email: string }
@@ -52,6 +52,10 @@ function emit(event: AuthChangeEvent, session: Session | null) {
   current = session
   for (const listener of listeners) listener(event, session)
 }
+
+onUnauthorized(() => {
+  if (current) emit('SIGNED_OUT', null)
+})
 
 export async function signIn(email: string, password: string): Promise<Session> {
   const normalizedEmail = email.trim().toLowerCase()

@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Modal, cx } from '@/components/ui'
+import { deleteResume, resumeUrl, updateEmployee, uploadResume } from '@/services/employees'
+import type { Employee } from '@/types/models'
 
 /**
- * Resume upload for the Resume tab, entirely on the frontend.
+ * The résumé file on the Resume tab. Stored privately by the API: only the
+ * employee and Admin/HR can open it, and coworkers never see this card.
  *
- * There is no `resume` column, storage bucket, or service function yet —
- * only `avatars` storage exists (docs/SCHEMA.md, docs/SERVICES.md). Adding
- * real persistence is a backend decision (an upload bucket, access rules, a documented
- * service function), so this keeps the file in memory for the tab's
- * lifetime via `URL.createObjectURL` and never calls the API. Swapping in
- * a real upload later is a matter of replacing `processFile` below with a
- * service call — nothing here should have to change shape.
+ * Uploading is two steps — store the file, then attach it to the employee
+ * record — so a failed attach removes the stored file again. Replacing or
+ * removing a résumé deletes the old file on the server.
  */
 
 const ACCEPTED_TYPES = [
@@ -22,25 +21,17 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.doc', '.docx']
 const MAX_BYTES = 5 * 1024 * 1024
 
 type StoredResume = {
-  file: File
-  url: string
-  uploadedAt: number
+  path: string
+  name: string
+  uploadedAt: string | null
 }
 
-// Module-level so the file survives a tab switch even though the Resume tab
-// unmounts when another tab is selected (EmployeeProfile renders only the
-// active tab). Keyed by employee id — never sent anywhere.
-const resumeStore = new Map<string, StoredResume>()
+const fromEmployee = (employee: Employee): StoredResume | null =>
+  employee.resume_path
+    ? { path: employee.resume_path, name: employee.resume_name ?? 'Résumé', uploadedAt: employee.resume_uploaded_at }
+    : null
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function isPdf(file: File): boolean {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-}
+const isPdf = (name: string): boolean => name.toLowerCase().endsWith('.pdf')
 
 function validate(file: File): string | null {
   const okType =
@@ -89,24 +80,18 @@ function Toast({ kind, message }: { kind: 'success' | 'error'; message: string }
   )
 }
 
-export function ResumeUpload({ employeeId, editable }: { employeeId: string; editable: boolean }) {
-  const [resume, setResume] = useState<StoredResume | null>(() => resumeStore.get(employeeId) ?? null)
+export function ResumeUpload({ employee, editable }: { employee: Employee; editable: boolean }) {
+  // Kept locally after a change rather than reloading the whole profile, so the
+  // confirmation toast survives.
+  const [resume, setResume] = useState<StoredResume | null>(() => fromEmployee(employee))
   const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const timerRef = useRef<number | undefined>(undefined)
   const toastTimerRef = useRef<number | undefined>(undefined)
 
-  useEffect(
-    () => () => {
-      window.clearInterval(timerRef.current)
-      window.clearTimeout(toastTimerRef.current)
-    },
-    [],
-  )
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), [])
 
   function notify(kind: 'success' | 'error', message: string) {
     window.clearTimeout(toastTimerRef.current)
@@ -114,7 +99,7 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3500)
   }
 
-  function processFile(file: File) {
+  async function processFile(file: File) {
     const problem = validate(file)
     if (problem) {
       notify('error', problem)
@@ -122,30 +107,24 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
     }
 
     setUploading(true)
-    setProgress(0)
-    window.clearInterval(timerRef.current)
-
-    let pct = 0
-    timerRef.current = window.setInterval(() => {
-      pct = Math.min(pct + Math.random() * 25 + 12, 100)
-      setProgress(pct)
-      if (pct >= 100) {
-        window.clearInterval(timerRef.current)
-        const previous = resumeStore.get(employeeId)
-        if (previous) URL.revokeObjectURL(previous.url)
-        const stored: StoredResume = { file, url: URL.createObjectURL(file), uploadedAt: Date.now() }
-        resumeStore.set(employeeId, stored)
-        setResume(stored)
-        setUploading(false)
-        notify('success', 'Resume uploaded.')
-      }
-    }, 150)
+    let path: string | null = null
+    try {
+      path = await uploadResume(file)
+      const updated = await updateEmployee(employee.id, { resume_path: path, resume_name: file.name })
+      setResume(fromEmployee(updated))
+      notify('success', 'Resume uploaded.')
+    } catch (cause) {
+      if (path) void deleteResume(path).catch(() => undefined)
+      notify('error', cause instanceof Error ? cause.message : 'Could not upload that resume.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (file) processFile(file)
+    if (file) void processFile(file)
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -153,23 +132,26 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
     setDragOver(false)
     if (!editable || uploading) return
     const file = e.dataTransfer.files?.[0]
-    if (file) processFile(file)
+    if (file) void processFile(file)
   }
 
-  function remove() {
-    const existing = resumeStore.get(employeeId)
-    if (existing) URL.revokeObjectURL(existing.url)
-    resumeStore.delete(employeeId)
-    setResume(null)
-    notify('success', 'Resume removed.')
+  async function remove() {
+    try {
+      await updateEmployee(employee.id, { resume_path: null })
+      setResume(null)
+      notify('success', 'Resume removed.')
+    } catch (cause) {
+      notify('error', cause instanceof Error ? cause.message : 'Could not remove the resume.')
+    }
   }
 
   function preview() {
     if (!resume) return
-    if (isPdf(resume.file)) {
+    if (isPdf(resume.name)) {
       setPreviewOpen(true)
     } else {
-      window.open(resume.url, '_blank', 'noopener,noreferrer')
+      // Word files cannot render inline; the browser downloads them.
+      window.open(resumeUrl(resume.path), '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -182,22 +164,24 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
           <div className="flex items-center gap-4 rounded-control border border-border-soft p-4">
             <DocumentIcon className="h-9 w-9 shrink-0 text-text-muted" />
             <div className="min-w-0 flex-1">
-              <p className="t-caption truncate">{resume.file.name}</p>
-              <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
-                {formatBytes(resume.file.size)} · Uploaded {new Date(resume.uploadedAt).toLocaleString()}
-              </p>
+              <p className="t-caption truncate">{resume.name}</p>
+              {resume.uploadedAt && (
+                <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
+                  Uploaded {new Date(resume.uploadedAt).toLocaleString()}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={preview}>
-              Preview resume
+              {isPdf(resume.name) ? 'Preview resume' : 'Download resume'}
             </Button>
             {editable && (
               <>
-                <Button size="sm" onClick={() => inputRef.current?.click()}>
-                  Replace resume
+                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
+                  {uploading ? 'Uploading…' : 'Replace resume'}
                 </Button>
-                <Button size="sm" variant="danger" onClick={remove}>
+                <Button size="sm" variant="danger" onClick={() => { void remove() }} disabled={uploading}>
                   Remove resume
                 </Button>
               </>
@@ -222,10 +206,7 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
             <div className="flex w-full max-w-xs flex-col items-center gap-2">
               <p className="t-caption text-text-muted">Uploading…</p>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-border-soft">
-                <div
-                  className="h-full rounded-full bg-text transition-[width] duration-150 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-text" />
               </div>
             </div>
           ) : (
@@ -253,9 +234,13 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
         />
       )}
 
-      {resume && isPdf(resume.file) && (
-        <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={resume.file.name}>
-          <iframe src={resume.url} title="Resume preview" className="h-[70vh] w-full rounded-control border border-border-soft" />
+      {resume && isPdf(resume.name) && (
+        <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={resume.name}>
+          <iframe
+            src={resumeUrl(resume.path)}
+            title="Resume preview"
+            className="h-[70vh] w-full rounded-control border border-border-soft"
+          />
         </Modal>
       )}
 

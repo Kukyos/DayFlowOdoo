@@ -7,15 +7,20 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  Modal,
   PageHeader,
   PresenceDot,
   Select,
   Spinner,
 } from '@/components/ui'
 import { useSession } from '@/context/session'
+import { ATTENDANCE_CHANGED, useAppEvent } from '@/hooks/useAppEvent'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
-import { listEmployees } from '@/services/employees'
-import { PRESENCE_LABEL } from '@/types/models'
+import { buildReportingTree, teamSize } from '@/lib/team'
+import type { TeamNode } from '@/lib/team'
+import { listEmployees, listInactiveEmployees, reactivateEmployee } from '@/services/employees'
+import { PRESENCE_LABEL, fullName } from '@/types/models'
+import type { DirectoryEmployee, InactiveEmployee } from '@/types/models'
 import directoryIllustration from '@/assets/employee-directory-illustration.png'
 
 /**
@@ -29,12 +34,15 @@ export function Directory() {
   const { isPrivileged } = useSession()
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState('')
+  const [view, setView] = useState<'cards' | 'team'>('cards')
+  const [showInactive, setShowInactive] = useState(false)
   const q = useDebounced(search)
 
   const { status, data, error, reload } = useAsync(
     () => listEmployees(),
     [],
   )
+  useAppEvent(ATTENDANCE_CHANGED, reload)
   const availableDepartments = [
     ...new Set(
       (data ?? [])
@@ -61,15 +69,34 @@ export function Directory() {
         title="Employees"
         subtitle="Everyone in your company, and whether they are in today."
         actions={
-          isPrivileged && (
-            <Link to="/employees/new">
-              <Button variant="strong">Add employee</Button>
-            </Link>
-          )
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant={view === 'cards' ? 'strong' : 'default'} onClick={() => setView('cards')}>
+              Cards
+            </Button>
+            <Button size="sm" variant={view === 'team' ? 'strong' : 'default'} onClick={() => setView('team')}>
+              Team
+            </Button>
+            {isPrivileged && (
+              <>
+                <Button size="sm" onClick={() => setShowInactive(true)}>
+                  Deactivated
+                </Button>
+                <Link to="/employees/new">
+                  <Button size="sm" variant="strong">Add employee</Button>
+                </Link>
+              </>
+            )}
+          </div>
         }
       />
 
-      <div className="mb-6 flex flex-wrap gap-3">
+      {isPrivileged && showInactive && (
+        <InactiveEmployees onClose={() => setShowInactive(false)} onReactivated={reload} />
+      )}
+
+      {view === 'team' && status === 'ready' && <TeamView people={data} />}
+
+      <div className={view === 'team' ? 'hidden' : 'mb-6 flex flex-wrap gap-3'}>
         <Input
           type="search"
           value={search}
@@ -96,7 +123,7 @@ export function Directory() {
       {status === 'loading' && <Spinner label="Loading the directory" />}
       {status === 'error' && <ErrorState message={error} onRetry={reload} />}
 
-      {status === 'ready' &&
+      {status === 'ready' && view === 'cards' &&
         (employees.length === 0 ? (
           <EmptyState
             title="Nobody matches that"
@@ -128,7 +155,7 @@ export function Directory() {
                     className="flex h-full flex-col gap-4 rounded-card"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <Avatar name={`${e.first_name} ${e.last_name}`} size={52} />
+                      <Avatar name={`${e.first_name} ${e.last_name}`} src={e.avatar_url} size={52} />
                       <PresenceDot presence={e.presence} />
                     </div>
                     <div>
@@ -138,8 +165,9 @@ export function Directory() {
                       <p className="t-caption mt-1 text-text-muted">{e.job_position}</p>
                     </div>
                     <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border-soft pt-3">
-                      <span className="t-label text-text-muted">{e.department}</span>
-                      <span className="t-label text-text-muted">· {e.location}</span>
+                      <span className="t-label text-text-muted">
+                        {[e.department, e.location].filter(Boolean).join(' · ') || 'No team set'}
+                      </span>
                     </div>
                     <span className="sr-only">{PRESENCE_LABEL[e.presence]}</span>
                   </Link>
@@ -178,5 +206,125 @@ export function Directory() {
         className="pointer-events-none mt-10 block w-full max-w-[720px] select-none"
       />
     </>
+  )
+}
+
+/** The reporting tree, built from each person's manager. */
+function TeamView({ people }: { people: DirectoryEmployee[] }) {
+  const tree = useMemo(() => buildReportingTree(people), [people])
+
+  if (people.length === 0) {
+    return <EmptyState title="Nobody here yet" body="Add employees and set their managers to see the team." />
+  }
+  return (
+    <Card className="mb-6">
+      <p className="t-caption mb-4 text-text-muted">
+        Who reports to whom, from each profile's manager. Admin/HR set managers on the Work Info tab.
+      </p>
+      <ul className="flex flex-col gap-1">
+        {tree.map((node) => (
+          <TeamBranch key={node.person.id} node={node} />
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+function TeamBranch({ node }: { node: TeamNode<DirectoryEmployee> }) {
+  const { person, reports } = node
+  const size = teamSize(node)
+  return (
+    <li>
+      <Link
+        to={`/employees/${person.id}`}
+        className="flex items-center gap-3 rounded-control px-2 py-2 hover:bg-neutral-fill"
+      >
+        <Avatar name={fullName(person)} src={person.avatar_url} size={36} />
+        <span className="min-w-0">
+          <span className="block t-caption font-medium">{fullName(person)}</span>
+          <span className="block t-label font-normal normal-case text-text-muted">
+            {person.job_position ?? 'No position set'}
+            {size > 0 && ` · ${size} ${size === 1 ? 'person' : 'people'} in team`}
+          </span>
+        </span>
+        <span className="ml-auto">
+          <PresenceDot presence={person.presence} />
+        </span>
+        <span className="sr-only">{PRESENCE_LABEL[person.presence]}</span>
+      </Link>
+      {reports.length > 0 && (
+        <ul className="ml-5 flex flex-col gap-1 border-l border-border-soft pl-3">
+          {reports.map((report) => (
+            <TeamBranch key={report.person.id} node={report} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+/** Admin/HR: deactivated people, with a way back in. Mounted only while open. */
+function InactiveEmployees({
+  onClose,
+  onReactivated,
+}: {
+  onClose: () => void
+  onReactivated: () => void
+}) {
+  const list = useAsync(() => listInactiveEmployees(), [])
+  const [error, setError] = useState<string | null>(null)
+  const [acting, setActing] = useState<string | null>(null)
+  const people: InactiveEmployee[] | null = list.data
+
+  async function reactivate(id: string) {
+    setActing(id)
+    setError(null)
+    try {
+      await reactivateEmployee(id)
+      list.reload()
+      onReactivated()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not reactivate that employee.')
+    } finally {
+      setActing(null)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Deactivated employees">
+      {error && <p role="alert" className="mb-3 t-caption text-danger-ink">{error}</p>}
+      {list.status === 'loading' && <Spinner label="Loading deactivated employees" />}
+      {list.status === 'error' && <ErrorState message={list.error} onRetry={list.reload} />}
+      {people?.length === 0 && (
+        <p className="t-caption py-4 text-text-muted">Nobody is deactivated. Everyone on the payroll can sign in.</p>
+      )}
+      {people && people.length > 0 && (
+        <ul>
+          {people.map((person) => (
+            <li key={person.id} className="flex items-center gap-3 border-b border-border-soft py-3 last:border-0">
+              <Avatar name={fullName(person)} src={person.avatar_url} size={32} />
+              <div className="min-w-0">
+                <p className="t-caption">{fullName(person)}</p>
+                <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
+                  {[person.job_position, person.department].filter(Boolean).join(' · ') || person.work_email}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="ml-auto"
+                disabled={acting === person.id}
+                onClick={() => { void reactivate(person.id) }}
+              >
+                {acting === person.id ? 'Reactivating…' : 'Reactivate'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="t-caption mt-4 text-text-muted">
+        A reactivated employee signs in with their existing password. Reset it from their profile if they have
+        forgotten it.
+      </p>
+    </Modal>
   )
 }

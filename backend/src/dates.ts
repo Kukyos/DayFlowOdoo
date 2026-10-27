@@ -47,6 +47,15 @@ export function workingDaysBetween(start: string, end: string): number {
   return count
 }
 
+/** `05 Nov 2026`, for server-written text such as notifications. */
+export const formatDay = (date: string): string =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+
 /** Weekdays from `start` to `end` inclusive. */
 export function weekdaysBetween(start: string, end: string): string[] {
   const days: string[] = []

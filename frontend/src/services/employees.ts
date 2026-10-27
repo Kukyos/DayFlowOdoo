@@ -1,4 +1,10 @@
-import type { DirectoryEmployee, Employee, EmployeeProfile, Presence, Role } from '@/types/models'
+import type {
+  DirectoryEmployee,
+  Employee,
+  EmployeeProfile,
+  InactiveEmployee,
+  Role,
+} from '@/types/models'
 import { ServiceError, api } from './client'
 
 function toDirectoryEmployee(row: DirectoryEmployee): DirectoryEmployee {
@@ -38,10 +44,11 @@ export async function listEmployees(opts: { search?: string; department?: string
 
 /**
  * The caller and Admin/HR receive the full record; a normal coworker receives
- * the deliberately smaller directory shape.
+ * the deliberately smaller directory shape. Everyone gets the manager's name
+ * and the direct reports.
  */
 export async function getEmployee(id: string): Promise<EmployeeProfile> {
-  const result = await api<{ employee: Employee | DirectoryEmployee; presence: Presence }>(
+  const result = await api<Required<EmployeeProfile>>(
     'GET',
     `/employees/${encodeURIComponent(id)}`,
     undefined,
@@ -50,7 +57,12 @@ export async function getEmployee(id: string): Promise<EmployeeProfile> {
   const employee = 'monthly_wage' in result.employee
     ? toEmployee(result.employee)
     : toDirectoryEmployee(result.employee)
-  return { employee, presence: result.presence }
+  return {
+    employee,
+    presence: result.presence,
+    manager: result.manager,
+    reports: result.reports.map(toDirectoryEmployee),
+  }
 }
 
 export type EmployeeUpdate = Partial<Pick<
@@ -66,6 +78,17 @@ export type EmployeeUpdate = Partial<Pick<
   | 'pan_no'
   | 'uan_no'
   | 'monthly_wage'
+  | 'resume_path'
+  | 'resume_name'
+  // Admin/HR only; the server refuses these from anyone else.
+  | 'first_name'
+  | 'last_name'
+  | 'job_position'
+  | 'department'
+  | 'location'
+  | 'manager_id'
+  | 'date_of_joining'
+  | 'role'
 >>
 
 export async function updateEmployee(id: string, patch: EmployeeUpdate): Promise<Employee> {
@@ -111,6 +134,35 @@ export async function deactivateEmployee(id: string): Promise<void> {
   await api('POST', `/employees/${encodeURIComponent(id)}/deactivate`, undefined, 'Could not deactivate that employee.')
 }
 
+/** Admin/HR only. Deactivated employees, by name. */
+export async function listInactiveEmployees(): Promise<InactiveEmployee[]> {
+  return api<InactiveEmployee[]>('GET', '/employees/inactive', undefined, 'Could not load deactivated employees.')
+}
+
+export async function reactivateEmployee(id: string): Promise<Employee> {
+  const employee = await api<Employee>(
+    'POST',
+    `/employees/${encodeURIComponent(id)}/reactivate`,
+    undefined,
+    'Could not reactivate that employee.',
+  )
+  return toEmployee(employee)
+}
+
+/**
+ * Admin/HR only. Issues a new one-time temporary password, returned once; the
+ * employee is signed out everywhere and must replace it at their next sign-in.
+ */
+export async function resetEmployeePassword(id: string): Promise<string> {
+  const { temporaryPassword } = await api<{ temporaryPassword: string }>(
+    'POST',
+    `/employees/${encodeURIComponent(id)}/reset-password`,
+    undefined,
+    'Could not reset that password.',
+  )
+  return temporaryPassword
+}
+
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 export async function uploadAvatar(file: File): Promise<string> {
@@ -135,4 +187,27 @@ export async function deleteAvatar(url: string): Promise<void> {
     undefined,
     'Could not remove the previous avatar.',
   )
+}
+
+const RESUME_EXTENSIONS = ['pdf', 'doc', 'docx']
+
+/** Stores a résumé privately and returns its object path; attach it with `updateEmployee`. */
+export async function uploadResume(file: File): Promise<string> {
+  const extension = file.name.toLowerCase().split('.').pop() ?? ''
+  if (!RESUME_EXTENSIONS.includes(extension)) throw new ServiceError('Only PDF, DOC, or DOCX files are accepted.')
+  if (file.size > 5 * 1024 * 1024) throw new ServiceError('That file is larger than 5 MB.')
+
+  const form = new FormData()
+  form.append('file', file)
+  const { path } = await api<{ path: string }>('POST', '/uploads/resumes', form, 'Could not upload that résumé.')
+  return path
+}
+
+/** Opens only for the owner and Admin/HR; the server checks the session. */
+export const resumeUrl = (path: string): string =>
+  `/api/files/resumes/${path.split('/').map(encodeURIComponent).join('/')}`
+
+/** Removes an uploaded résumé that never got attached (a failed save). */
+export async function deleteResume(path: string): Promise<void> {
+  await api('DELETE', `/uploads/resumes?path=${encodeURIComponent(path)}`, undefined, 'Could not remove that résumé.')
 }

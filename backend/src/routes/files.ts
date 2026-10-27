@@ -1,11 +1,13 @@
 /**
  * Uploaded files live on disk under `uploads/<bucket>/<company-id>/...`.
  * Avatars and company logos are public presentation assets; leave documents
- * are served only to their owner and to Admin/HR in the same company.
+ * and résumés are served only to their owner and to Admin/HR in the same
+ * company.
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { isPrivileged, requireEmployee } from '../auth.ts'
 import { UPLOADS_DIR } from '../db.ts'
 import { badRequest, forbidden, notFound } from '../http.ts'
@@ -50,6 +52,18 @@ const BUCKETS: Record<string, Bucket> = {
     canWrite: ownFolder,
     canRead: (me, segments) => ownFolder(me, segments) || isPrivileged(me),
   },
+  resumes: {
+    public: false,
+    maxBytes: 5 * MB,
+    types: {
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    },
+    folder: (me) => [me.id],
+    canWrite: ownFolder,
+    canRead: (me, segments) => ownFolder(me, segments) || isPrivileged(me),
+  },
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -58,6 +72,19 @@ const CONTENT_TYPES: Record<string, string> = {
   webp: 'image/webp',
   svg: 'image/svg+xml',
   pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/**
+ * The stored extension for an upload. Browsers often send Word files with an
+ * empty MIME type, so an allowed extension on the file name also counts.
+ */
+function extensionFor(bucket: Bucket, file: File): string | undefined {
+  const byType = bucket.types[file.type]
+  if (byType) return byType
+  const byName = file.name.toLowerCase().split('.').pop() ?? ''
+  return Object.values(bucket.types).includes(byName) ? byName : undefined
 }
 
 function bucketFor(name: string): Bucket {
@@ -77,9 +104,30 @@ function segmentsOf(objectPath: string): string[] {
 
 const diskPath = (bucket: string, segments: string[]) => path.join(UPLOADS_DIR, bucket, ...segments)
 
+/** Deletes a stored object. Used when the record pointing at it goes away. */
+export async function removeObject(bucket: string, objectPath: string): Promise<void> {
+  await rm(diskPath(bucket, segmentsOf(objectPath)), { force: true })
+}
+
+/** True when `objectPath` is a well-formed path inside `employeeId`'s own folder. */
+export function isOwnObject(objectPath: string, companyId: string, employeeId: string): boolean {
+  try {
+    const segments = segmentsOf(objectPath)
+    return segments.length === 3 && segments[0] === companyId && segments[1] === employeeId
+  } catch {
+    return false
+  }
+}
+
+// A little over the largest bucket limit, so the per-bucket message still wins.
+const uploadBodyLimit = bodyLimit({
+  maxSize: 11 * MB,
+  onError: (c) => c.json({ message: 'The file must be 10 MB or smaller.' }, 413),
+})
+
 export const fileRoutes = new Hono<AppEnv>()
 
-fileRoutes.post('/uploads/:bucket', requireEmployee, async (c) => {
+fileRoutes.post('/uploads/:bucket', requireEmployee, uploadBodyLimit, async (c) => {
   const name = c.req.param('bucket')
   const bucket = bucketFor(name)
   const me = c.var.me
@@ -89,7 +137,7 @@ fileRoutes.post('/uploads/:bucket', requireEmployee, async (c) => {
   const form = await c.req.parseBody()
   const file = form.file
   if (!(file instanceof File)) throw badRequest('Choose a file to upload.')
-  const extension = bucket.types[file.type]
+  const extension = extensionFor(bucket, file)
   if (!extension) throw badRequest('That file type is not allowed here.')
   if (file.size > bucket.maxBytes) {
     throw badRequest(`The file must be ${bucket.maxBytes / MB} MB or smaller.`)
@@ -139,11 +187,15 @@ fileRoutes.get('/files/:bucket/:path{.+}', async (c, next) => {
     throw notFound('That file no longer exists.')
   }
   const extension = segments[segments.length - 1].split('.').pop() ?? ''
-  return c.body(new Uint8Array(content), 200, {
+  const headers: Record<string, string> = {
     'Content-Type': CONTENT_TYPES[extension] ?? 'application/octet-stream',
     'Cache-Control': bucket.public ? 'public, max-age=3600' : 'private, no-store',
-    // Uploaded SVGs are served from the app's origin; never let them run script.
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
     'X-Content-Type-Options': 'nosniff',
-  })
+  }
+  // Uploaded SVGs are served from the app's origin; never let them run script.
+  // (Only SVGs: the same policy on a PDF stops the browser's PDF viewer.)
+  if (extension === 'svg') {
+    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+  }
+  return c.body(new Uint8Array(content), 200, headers)
 })

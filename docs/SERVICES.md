@@ -56,10 +56,15 @@ type SignUpCompanyResult = { userId: string }
 | function | route | notes |
 |---|---|---|
 | `listEmployees({ search?, department? })` | `GET /directory` | Directory-safe columns plus derived `presence`; filtered client-side |
-| `getEmployee(id)` | `GET /employees/:id` | Full record for self or Admin/HR; directory shape for a coworker |
+| `getEmployee(id)` | `GET /employees/:id` | Full record for self or Admin/HR; directory shape for a coworker. Also the manager's name and the active direct reports |
 | `createEmployee(input)` | `POST /employees` | Admin/HR only; returns `{ employee, temporaryPassword }` once |
-| `updateEmployee(id, patch)` | `PATCH /employees/:id` | Self: safe profile/private fields. Admin/HR: also wage and job fields |
+| `updateEmployee(id, patch)` | `PATCH /employees/:id` | Self: safe profile/private fields and résumé. Admin/HR: also wage, names, job, manager, joining date, role (not their own) |
 | `deactivateEmployee(id)` | `POST /employees/:id/deactivate` | Admin/HR only; not yourself |
+| `listInactiveEmployees()` | `GET /employees/inactive` | Admin/HR only |
+| `reactivateEmployee(id)` | `POST /employees/:id/reactivate` | Admin/HR only; the employee keeps their password |
+| `resetEmployeePassword(id)` | `POST /employees/:id/reset-password` | Admin/HR only, not yourself; returns a one-time temporary password and signs the employee out |
+| `uploadResume(file)` / `deleteResume(path)` | `POST` / `DELETE /uploads/resumes` | Store the file, then attach it with `updateEmployee({ resume_path, resume_name })` |
+| `resumeUrl(path)` | — | `/api/files/resumes/<path>`; owner and Admin/HR only |
 | `uploadAvatar(file)` / `deleteAvatar(url)` | `POST` / `DELETE /uploads/avatars` | |
 
 ## `attendance.ts`
@@ -70,7 +75,7 @@ type SignUpCompanyResult = { userId: string }
 | `todayStatus()` | `GET /attendance/today` | `{ checkedIn, row }` for the header control |
 | `myAttendance(employeeId, month)` | `GET /attendance`, `GET /leave` | The month with gaps filled as leave or absent, and derived `work_hours` |
 | `companyAttendance(date, { search? })` | `GET /attendance/company` | Admin/HR only day register |
-| `attendanceSummary(employeeId, month)` | — | `{ present, absent, halfDay, leave }` from `myAttendance` |
+| `summarizeAttendance(days)` / `attendanceSummary(employeeId, month)` | — | `{ present, absent, halfDay, leave }` for working days; today counts only once recorded |
 
 ## `timeOff.ts`
 
@@ -78,8 +83,8 @@ type SignUpCompanyResult = { userId: string }
 |---|---|---|
 | `myBalances(employeeId)` | `GET /employees/:id` | `{ paid, sick }` |
 | `myRequests(employeeId)` | `GET /leave?employeeId=` | |
-| `createRequest(input)` | `POST /leave` | Server derives requester and weekday count, and checks the balance |
-| `cancelRequest(id)` | `DELETE /leave/:id` | Own pending request only |
+| `createRequest(input)` | `POST /leave` | Server derives requester and weekday count, checks the balance, and refuses overlap with your pending/approved requests |
+| `cancelRequest(id)` | `DELETE /leave/:id` | Own pending request only; deletes its certificate |
 | `pendingRequests()` / `allRequests({ search?, status? })` | `GET /leave` | Admin/HR see the whole company |
 | `reviewRequest(id, status, comment?)` | `POST /leave/:id/review` | Admin/HR only; balance moves exactly once, notification written in the same transaction |
 | `uploadAttachment(file)` / `deleteAttachment(path)` | `POST` / `DELETE /uploads/leave-documents` | Stores a private object path |
@@ -95,7 +100,16 @@ type SignUpCompanyResult = { userId: string }
 
 `listNotifications()`, `unreadNotificationCount()`, `markNotificationRead()`,
 and `markAllNotificationsRead()` (`/notifications`) operate only on the caller's
-rows. The browser cannot create notifications or edit their content.
+rows. The browser cannot create notifications or edit their content. The
+header bell uses all four.
+
+## Other frontend helpers
+
+- `lib/team.ts` — `buildReportingTree(people)` for the directory's Team view.
+- `hooks/useAppEvent.ts` — `ATTENDANCE_CHANGED`, fired by the header Check In
+  control; the dashboard, attendance and directory reload on it.
+- `services/client.ts` — any 401 outside sign-in ends the client session and
+  returns to `/signin`.
 
 ## `salary.ts`
 

@@ -2,17 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Avatar, Button, cx } from '@/components/ui'
 import { useSession } from '@/context/session'
-import { formatTime } from '@/lib/dates'
+import { ATTENDANCE_CHANGED, emitAppEvent } from '@/hooks/useAppEvent'
+import { formatTime, timeAgo } from '@/lib/dates'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import { checkIn, checkOut, todayStatus } from '@/services/attendance'
 import { signOut } from '@/services/auth'
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  unreadNotificationCount,
+} from '@/services/notifications'
 import {
   deleteCompanyLogo,
   getCompany,
   updateCompany,
   uploadCompanyLogo,
 } from '@/services/company'
-import type { Company } from '@/types/models'
+import type { Company, Notification } from '@/types/models'
 import { fullName } from '@/types/models'
 
 const NAV = [
@@ -68,6 +75,7 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-2">
             <CheckInControl onChange={() => { void refreshEmployee() }} />
+            <NotificationBell />
             <AvatarMenu
               name={fullName(employee)}
               role={isPrivileged ? 'Admin / HR' : 'Employee'}
@@ -136,6 +144,7 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
       else await checkIn()
       await load()
       onChange()
+      emitAppEvent(ATTENDANCE_CHANGED)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that.')
     } finally {
@@ -146,16 +155,191 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
   const done = Boolean(state.checkOut)
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="relative flex items-center gap-2">
       {state.checkIn && (
         <span className="t-data hidden text-text-muted md:inline">
           {formatTime(state.checkIn)}
           {state.checkOut ? ` – ${formatTime(state.checkOut)}` : ''}
         </span>
       )}
-      <Button size="sm" onClick={act} disabled={busy || done} title={error ?? undefined}>
+      <Button size="sm" onClick={act} disabled={busy || done}>
         {done ? 'Done for today' : state.checkedIn ? 'Check out' : 'Check in'}
       </Button>
+      {error && (
+        <p
+          role="alert"
+          className="absolute right-0 top-full z-40 mt-2 w-64 rounded-control border border-danger-ink bg-surface-raised px-3 py-2 t-label font-normal normal-case text-danger-ink"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Closes a dropdown on an outside click or Escape. Returns the ref for its wrapper. */
+function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close()
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, close])
+  return ref
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+      <path
+        d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15l1.5-2Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Leave decisions, written by the server when Admin/HR approve or reject. The
+ * unread count refreshes every minute and whenever the window regains focus.
+ */
+function NotificationBell() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const ref = useDismiss(open, close)
+  const [unread, setUnread] = useState(0)
+  const [items, setItems] = useState<Notification[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refreshCount = useCallback(() => {
+    void unreadNotificationCount().then(setUnread).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    refreshCount()
+    const timer = window.setInterval(refreshCount, 60_000)
+    window.addEventListener('focus', refreshCount)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshCount)
+    }
+  }, [refreshCount])
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (!next) return
+    setError(null)
+    void listNotifications(10)
+      .then(setItems)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : 'Could not load notifications.')
+      })
+  }
+
+  async function openItem(item: Notification) {
+    setOpen(false)
+    if (!item.read_at) {
+      await markNotificationRead(item.id).catch(() => undefined)
+      refreshCount()
+    }
+    navigate('/time-off')
+  }
+
+  async function markAll() {
+    try {
+      await markAllNotificationsRead()
+      const now = new Date().toISOString()
+      setItems((current) => current?.map((item) => ({ ...item, read_at: item.read_at ?? now })) ?? null)
+      setUnread(0)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not mark notifications as read.')
+    }
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-muted hover:bg-neutral-fill hover:text-text"
+      >
+        <BellIcon />
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-text px-1 t-label text-[10px] leading-none text-bg">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2.5rem)] rounded-card border border-border bg-surface-raised p-1"
+        >
+          <div className="flex items-center justify-between border-b border-border-soft px-3 py-2">
+            <p className="t-caption font-bold">Notifications</p>
+            {unread > 0 && (
+              <button type="button" onClick={() => { void markAll() }} className="t-label text-text-muted hover:text-text">
+                Mark all read
+              </button>
+            )}
+          </div>
+          {error && <p role="alert" className="px-3 py-3 t-label text-danger-ink">{error}</p>}
+          {!error && items === null && <p className="px-3 py-3 t-caption text-text-muted">Loading…</p>}
+          {!error && items?.length === 0 && (
+            <p className="px-3 py-6 t-caption text-text-muted">
+              Nothing yet. Decisions on your time-off requests appear here.
+            </p>
+          )}
+          {items && items.length > 0 && (
+            <ul className="max-h-96 overflow-y-auto">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { void openItem(item) }}
+                    className="flex w-full gap-3 rounded-control px-3 py-2.5 text-left hover:bg-neutral-fill"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.read_at ? 'bg-transparent' : 'bg-text')}
+                    />
+                    <span className="min-w-0">
+                      <span className={cx('block t-caption', !item.read_at && 'font-bold')}>
+                        {item.title}
+                        {!item.read_at && <span className="sr-only"> (unread)</span>}
+                      </span>
+                      <span className="mt-0.5 block t-label font-normal normal-case text-text-muted">
+                        {item.message}
+                      </span>
+                      <span className="mt-1 block t-label font-normal normal-case text-text-muted">
+                        {timeAgo(item.created_at)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -175,24 +359,11 @@ function AvatarMenu({
 }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const ref = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  const ref = useDismiss(open, close)
   const [theme, setThemeState] = useState<Theme>(currentTheme)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
 
   return (
     <div className="relative" ref={ref}>

@@ -9,11 +9,12 @@ import {
 } from '../auth.ts'
 import { all, newId, one, run, tx } from '../db.ts'
 import type { Params } from '../db.ts'
-import { todayIST } from '../dates.ts'
+import { nowISO, todayIST } from '../dates.ts'
 import { badRequest, forbidden, isEmail, jsonBody, notFound, optionalText, text } from '../http.ts'
 import type { AppEnv } from '../http.ts'
 import { presenceSql } from '../queries.ts'
 import { directoryEmployee, employee } from '../serialize.ts'
+import { isOwnObject, removeObject } from './files.ts'
 
 export const employeeRoutes = new Hono<AppEnv>()
 
@@ -38,24 +39,44 @@ employeeRoutes.get('/directory', (c) =>
   c.json(companyDirectory(c.var.me.company_id).map(directoryEmployee)),
 )
 
+/** Deactivated people, so Admin/HR can bring them back. Registered before `/employees/:id`. */
+employeeRoutes.get('/employees/inactive', requirePrivileged, (c) =>
+  c.json(all(
+    `select id, first_name, last_name, avatar_url, job_position, department, work_email
+     from employees
+     where company_id = ? and is_active = 0
+     order by first_name, last_name`,
+    c.var.me.company_id,
+  )),
+)
+
 /**
  * The caller and Admin/HR get the full record; a coworker gets the directory
  * projection, which carries no `monthly_wage` — the frontend keys off that.
+ * Everyone also gets the manager's name and the active direct reports.
  */
 employeeRoutes.get('/employees/:id', (c) => {
   const id = c.req.param('id')
   const [row] = companyDirectory(c.var.me.company_id, 'and employee.id = ?', [id])
   if (!row) throw notFound('That employee no longer exists or is outside your company.')
   const presence = row.presence as string
+  const manager = row.manager_id
+    ? one(
+        'select id, first_name, last_name from employees where id = ? and company_id = ?',
+        row.manager_id, c.var.me.company_id,
+      ) ?? null
+    : null
   return c.json({
     employee: canSeeFullRecord(c.var.me, id) ? employee(row) : directoryEmployee(row),
     presence,
+    manager,
+    reports: companyDirectory(c.var.me.company_id, 'and employee.manager_id = ?', [id]).map(directoryEmployee),
   })
 })
 
 const SELF_FIELDS = [
   'about', 'skills', 'mobile', 'address', 'avatar_url', 'date_of_birth',
-  'bank_account_number', 'ifsc_code', 'pan_no', 'uan_no',
+  'bank_account_number', 'ifsc_code', 'pan_no', 'uan_no', 'resume_path', 'resume_name',
 ] as const
 
 const PRIVILEGED_FIELDS = [
@@ -102,7 +123,19 @@ function fieldValue(field: Field, value: unknown, companyId: string, targetId: s
       ) {
         throw badRequest('Choose an active manager from your company.')
       }
+      // Walk up from the new manager: reaching the employee means a loop.
+      for (let above = managerId, steps = 0; above && steps < 1000; steps += 1) {
+        if (above === targetId) throw badRequest('That would make the reporting line loop back on itself.')
+        above = one<{ manager_id: string | null }>('select manager_id from employees where id = ?', above)?.manager_id ?? null
+      }
       return managerId
+    }
+    case 'resume_path': {
+      const resumePath = optionalText(value)
+      if (resumePath && !isOwnObject(resumePath, companyId, targetId)) {
+        throw badRequest('Upload the résumé before attaching it.')
+      }
+      return resumePath
     }
     default:
       return optionalText(value)
@@ -122,6 +155,9 @@ employeeRoutes.patch('/employees/:id', async (c) => {
 
   const allowed: readonly string[] = isPrivileged(me) ? PRIVILEGED_FIELDS : SELF_FIELDS
   const body = await jsonBody(c)
+  if (id === me.id && 'role' in body && body.role !== me.role) {
+    throw forbidden('You cannot change your own access level.')
+  }
   const sets: string[] = []
   const params: Params = []
   for (const [field, value] of Object.entries(body)) {
@@ -132,7 +168,20 @@ employeeRoutes.patch('/employees/:id', async (c) => {
     params.push(fieldValue(field as Field, value, me.company_id, id))
   }
 
+  const previousResume = one<{ resume_path: string | null }>('select resume_path from employees where id = ?', id)!.resume_path
+  const resumeChanged = 'resume_path' in body && (optionalText(body.resume_path) ?? null) !== previousResume
+  if (resumeChanged) {
+    sets.push('resume_uploaded_at = ?')
+    params.push(optionalText(body.resume_path) ? nowISO() : null)
+    if (!optionalText(body.resume_path)) {
+      sets.push('resume_name = ?')
+      params.push(null)
+    }
+  }
+
   if (sets.length > 0) run(`update employees set ${sets.join(', ')} where id = ?`, ...params, id)
+  // The old file is unreachable once nothing points at it.
+  if (resumeChanged && previousResume) await removeObject('resumes', previousResume).catch(() => undefined)
   return c.json(employee(one('select * from employees where id = ?', id)!))
 })
 
@@ -194,4 +243,33 @@ employeeRoutes.post('/employees/:id/deactivate', requirePrivileged, (c) => {
   if (result.changes === 0) throw notFound('That active employee does not exist in your company.')
   run('delete from sessions where user_id = ?', id)
   return c.json({ ok: true })
+})
+
+employeeRoutes.post('/employees/:id/reactivate', requirePrivileged, (c) => {
+  const result = run(
+    'update employees set is_active = 1 where id = ? and company_id = ? and is_active = 0',
+    c.req.param('id'), c.var.me.company_id,
+  )
+  if (result.changes === 0) throw notFound('That deactivated employee does not exist in your company.')
+  return c.json(employee(one('select * from employees where id = ?', c.req.param('id'))!))
+})
+
+/**
+ * There is no email, so a forgotten password is reset by Admin/HR: a new
+ * one-time temporary password, which must be replaced at the next sign-in.
+ */
+employeeRoutes.post('/employees/:id/reset-password', requirePrivileged, (c) => {
+  const id = c.req.param('id')
+  if (id === c.var.me.id) throw badRequest('Change your own password from the account menu instead.')
+  if (!one('select 1 from employees where id = ? and company_id = ? and is_active = 1', id, c.var.me.company_id)) {
+    throw notFound('That active employee does not exist in your company.')
+  }
+
+  const password = temporaryPassword()
+  tx(() => {
+    run('update users set password_hash = ? where id = ?', hashPassword(password), id)
+    run('update employees set must_change_password = 1 where id = ?', id)
+    run('delete from sessions where user_id = ?', id)
+  })
+  return c.json({ temporaryPassword: password })
 })

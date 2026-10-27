@@ -67,6 +67,10 @@ export type Employee = {
   monthly_wage: number | null
   paid_leave_balance: number
   sick_leave_balance: number
+  /** Object path in the private `resumes` store, with the original file name. */
+  resume_path: string | null
+  resume_name: string | null
+  resume_uploaded_at: string | null
   is_active: boolean
   must_change_password: boolean
   created_at: string
@@ -95,6 +99,20 @@ export type DirectoryEmployee = {
 export type EmployeeProfile = {
   employee: Employee | DirectoryEmployee
   presence: Presence
+  manager?: { id: string; first_name: string; last_name: string } | null
+  /** Active direct reports, as directory-safe rows. */
+  reports?: DirectoryEmployee[]
+}
+
+/** A deactivated employee, as Admin/HR see them in the reactivation list. */
+export type InactiveEmployee = {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  job_position: string | null
+  department: string | null
+  work_email: string
 }
 
 export const isFullEmployee = (employee: Employee | DirectoryEmployee): employee is Employee =>

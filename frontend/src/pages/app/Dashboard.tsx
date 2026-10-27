@@ -10,6 +10,7 @@ import {
   StatusChip,
 } from '@/components/ui'
 import { useSession } from '@/context/session'
+import { ATTENDANCE_CHANGED, useAppEvent } from '@/hooks/useAppEvent'
 import { useAsync } from '@/hooks/useAsync'
 import { formatDate, formatTime } from '@/lib/dates'
 import { getDashboardSummary } from '@/services/dashboard'
@@ -41,6 +42,7 @@ export function Dashboard() {
     if (!employee) throw new Error('Not signed in.')
     return getDashboardSummary()
   }, [employee?.id, isPrivileged])
+  useAppEvent(ATTENDANCE_CHANGED, reload)
 
   if (status === 'loading') return <Spinner label="Loading your dashboard" />
   if (status === 'error') return <ErrorState message={error} onRetry={reload} />

@@ -20,7 +20,25 @@ export function db(): DatabaseSync {
   database = new DatabaseSync(DB_PATH)
   database.exec('pragma foreign_keys = on; pragma journal_mode = wal; pragma busy_timeout = 5000;')
   database.exec(readFileSync(path.join(import.meta.dirname, 'schema.sql'), 'utf8'))
+  upgrade(database)
   return database
+}
+
+/**
+ * `create table if not exists` never alters a table that already exists, so a
+ * column added to schema.sql later is added here too, for databases created
+ * before it.
+ */
+function upgrade(connection: DatabaseSync): void {
+  const ensureColumn = (table: string, column: string, type: string) => {
+    const columns = connection.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>
+    if (!columns.some((existing) => existing.name === column)) {
+      connection.exec(`alter table ${table} add column ${column} ${type}`)
+    }
+  }
+  ensureColumn('employees', 'resume_path', 'text')
+  ensureColumn('employees', 'resume_name', 'text')
+  ensureColumn('employees', 'resume_uploaded_at', 'text')
 }
 
 export function closeDb(): void {

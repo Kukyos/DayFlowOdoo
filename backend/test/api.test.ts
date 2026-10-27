@@ -3,7 +3,7 @@
  * database. Each actor carries its own session cookie.
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
@@ -262,5 +262,144 @@ describe('dashboard and files', () => {
     const text = new FormData()
     text.append('file', new File(['hello'], 'a.txt', { type: 'text/plain' }))
     assert.equal((await employee.call('POST', '/uploads/avatars', text)).status, 400)
+  })
+})
+
+const pdf = (name = 'file.pdf', type = 'application/pdf') => {
+  const form = new FormData()
+  form.append('file', new File([new Uint8Array([37, 80, 68, 70])], name, { type }))
+  return form
+}
+const uploaded = (bucket: string, objectPath: string) =>
+  existsSync(path.join(scratch, 'uploads', bucket, ...objectPath.split('/')))
+
+async function newEmployee(first: string, last: string, extra: Json = {}) {
+  const email = `${first}.${last}@neamtull.example`.toLowerCase()
+  const created = await admin.call('POST', '/employees', {
+    first_name: first, last_name: last, work_email: email,
+    date_of_joining: '2026-10-01', monthly_wage: 40000, role: 'employee', ...extra,
+  })
+  assert.equal(created.status, 201, created.json.message)
+  return { id: created.json.employee.id as string, email, password: created.json.temporaryPassword as string }
+}
+
+describe('leave integrity', () => {
+  test('overlapping requests are refused', async () => {
+    const first = await employee.call('POST', '/leave', { leave_type: 'unpaid', start_date: '2027-07-05', end_date: '2027-07-06' })
+    assert.equal(first.status, 201)
+    const overlap = await employee.call('POST', '/leave', { leave_type: 'unpaid', start_date: '2027-07-06', end_date: '2027-07-07' })
+    assert.equal(overlap.status, 400)
+    assert.match(overlap.json.message, /already have a request/)
+    await employee.call('DELETE', `/leave/${first.json.id}`)
+    assert.equal((await employee.call('POST', '/leave', { leave_type: 'unpaid', start_date: '2027-07-06', end_date: '2027-07-07' })).status, 201)
+  })
+
+  test('cancelling a request deletes its certificate', async () => {
+    const upload = await employee.call('POST', '/uploads/leave-documents', pdf())
+    const request = await employee.call('POST', '/leave', {
+      leave_type: 'sick', start_date: '2027-08-02', end_date: '2027-08-02', attachment_url: upload.json.path,
+    })
+    assert.equal(request.status, 201)
+    assert.ok(uploaded('leave-documents', upload.json.path))
+    assert.equal((await employee.call('DELETE', `/leave/${request.json.id}`)).status, 200)
+    assert.equal(uploaded('leave-documents', upload.json.path), false)
+  })
+
+  test('a request cannot point at someone else\'s upload', async () => {
+    const theirs = await coworker.call('POST', '/uploads/leave-documents', pdf())
+    const request = await employee.call('POST', '/leave', {
+      leave_type: 'sick', start_date: '2027-08-09', end_date: '2027-08-09', attachment_url: theirs.json.path,
+    })
+    assert.equal(request.status, 400)
+    assert.ok(uploaded('leave-documents', theirs.json.path))
+  })
+})
+
+describe('employee administration', () => {
+  test('nobody changes their own access level', async () => {
+    const adminId = (await admin.call('GET', '/auth/me')).json.id
+    assert.equal((await admin.call('PATCH', `/employees/${adminId}`, { role: 'employee' })).status, 403)
+    assert.equal((await admin.call('PATCH', `/employees/${adminId}`, { role: 'admin', location: 'Coimbatore' })).status, 200)
+  })
+
+  test('reporting lines cannot loop, and profiles show manager and reports', async () => {
+    const adminId = (await admin.call('GET', '/auth/me')).json.id
+    assert.equal((await admin.call('PATCH', `/employees/${employeeId}`, { manager_id: adminId })).status, 200)
+    const loop = await admin.call('PATCH', `/employees/${adminId}`, { manager_id: employeeId })
+    assert.equal(loop.status, 400)
+    assert.match(loop.json.message, /loop/)
+
+    const rahul = (await coworker.call('GET', `/employees/${employeeId}`)).json
+    assert.equal(rahul.manager.first_name, 'Meera')
+    const meera = (await coworker.call('GET', `/employees/${adminId}`)).json
+    assert.ok((meera.reports as Json[]).some((report) => report.id === employeeId))
+    assert.ok((meera.reports as Json[]).every((report) => !('monthly_wage' in report)))
+  })
+
+  test('admin password reset issues a new one-time password and ends sessions', async () => {
+    const nisha = await newEmployee('Nisha', 'Pillai')
+    const session = await new Actor().signIn(nisha.email, nisha.password)
+    await session.call('POST', '/auth/password', { password: 'Chosen2026x' })
+
+    assert.equal((await employee.call('POST', `/employees/${nisha.id}/reset-password`)).status, 403)
+    const adminId = (await admin.call('GET', '/auth/me')).json.id
+    assert.equal((await admin.call('POST', `/employees/${adminId}/reset-password`)).status, 400)
+
+    const reset = await admin.call('POST', `/employees/${nisha.id}/reset-password`)
+    assert.equal(reset.status, 200)
+    assert.equal((await session.call('GET', '/auth/me')).status, 401)
+    const old = await new Actor().call('POST', '/auth/signin', { email: nisha.email, password: 'Chosen2026x' })
+    assert.equal(old.status, 401)
+    const fresh = await new Actor().signIn(nisha.email, reset.json.temporaryPassword)
+    assert.equal((await fresh.call('GET', '/auth/me')).json.must_change_password, true)
+  })
+
+  test('deactivated employees can be listed and reactivated', async () => {
+    const vivek = await newEmployee('Vivek', 'Sharma')
+    await admin.call('POST', `/employees/${vivek.id}/deactivate`)
+    assert.equal((await employee.call('GET', '/employees/inactive')).status, 403)
+    const inactive = (await admin.call('GET', '/employees/inactive')).json as Json[]
+    assert.ok(inactive.some((person) => person.id === vivek.id))
+    assert.ok(inactive.every((person) => !('monthly_wage' in person)))
+
+    assert.equal((await admin.call('POST', `/employees/${vivek.id}/reactivate`)).status, 200)
+    assert.equal((await admin.call('POST', `/employees/${vivek.id}/reactivate`)).status, 404)
+    await new Actor().signIn(vivek.email, vivek.password)
+  })
+
+  test('a new joiner\'s dashboard does not count days before they started', async () => {
+    const joiner = await newEmployee('Farah', 'Khan', { date_of_joining: new Date().toISOString().slice(0, 10) })
+    const session = await new Actor().signIn(joiner.email, joiner.password)
+    const { attendance } = (await session.call('GET', '/dashboard')).json
+    assert.equal(attendance.absent, 0)
+  })
+})
+
+describe('résumés', () => {
+  test('stored privately, attached to your own record, replaced cleanly', async () => {
+    const first = await employee.call('POST', '/uploads/resumes', pdf('rahul-cv.pdf'))
+    assert.equal(first.status, 201)
+    const saved = await employee.call('PATCH', `/employees/${employeeId}`, { resume_path: first.json.path, resume_name: 'rahul-cv.pdf' })
+    assert.equal(saved.status, 200)
+    assert.equal(saved.json.resume_name, 'rahul-cv.pdf')
+    assert.ok(saved.json.resume_uploaded_at)
+
+    assert.equal((await admin.call('GET', `/files/resumes/${first.json.path}`)).status, 200)
+    assert.equal((await coworker.call('GET', `/files/resumes/${first.json.path}`)).status, 403)
+    const directory = (await coworker.call('GET', '/directory')).json as Json[]
+    assert.ok(directory.every((person) => !('resume_path' in person)))
+
+    const theirs = await coworker.call('POST', '/uploads/resumes', pdf())
+    assert.equal((await employee.call('PATCH', `/employees/${employeeId}`, { resume_path: theirs.json.path })).status, 400)
+
+    // Word files often arrive with no MIME type; the extension is enough.
+    const word = await employee.call('POST', '/uploads/resumes', pdf('rahul-cv.docx', ''))
+    assert.equal(word.status, 201)
+    await employee.call('PATCH', `/employees/${employeeId}`, { resume_path: word.json.path, resume_name: 'rahul-cv.docx' })
+    assert.equal(uploaded('resumes', first.json.path), false)
+
+    const cleared = await employee.call('PATCH', `/employees/${employeeId}`, { resume_path: null })
+    assert.equal(cleared.json.resume_name, null)
+    assert.equal(uploaded('resumes', word.json.path), false)
   })
 })
