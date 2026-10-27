@@ -7,8 +7,10 @@ runs on in one place, and makes them agree with each other: **who works here,
 who showed up today, who is on leave, and what each person is owed at the end of
 the month.**
 
-Runs entirely on your machine: a React frontend and a small TypeScript API over
-a single SQLite file. See [Run it](#run-it).
+A React frontend and a small TypeScript API over a single SQLite file. Runs on
+your machine (see [Run it](#run-it)) or live at
+**[dayflow-odoo-sand.vercel.app](https://dayflow-odoo-sand.vercel.app/)**, where
+the demo database reseeds itself whenever the server cold-starts.
 
 ![Dayflow employee directory](docs/screenshots/directory.png)
 
@@ -91,8 +93,9 @@ attendance and remaining balances.
 **React 19 · TypeScript · Vite · Tailwind v4 · React Router v7 · Hono · SQLite**
 
 The backend is a small TypeScript API on Node, using the built-in `node:sqlite`
-module, so there is no database server to install. It runs locally only; Vite
-proxies `/api` to it, so the browser sees a single origin.
+module, so there is no database server to install. Locally, Vite proxies `/api`
+to it; on Vercel, `scripts/build-vercel.mjs` bundles it into one function beside
+the static frontend. Either way the browser sees a single origin.
 
 ## Architecture
 
