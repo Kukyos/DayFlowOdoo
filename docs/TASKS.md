@@ -175,3 +175,9 @@ zero console errors · preview URL works · this file ticked in the same push.
 `npm run build` runs `tsc -b`, so a type error fails it. In a stage that produces
 a dozen pages in one pass, a failing build is the most common way a page is
 silently broken. Run both before asking for review, every time.
+
+## Local verification — 2026-10-27
+
+- [x] Verify `dbms` at `ee3bfbf`: automated tests, type checks, lint, production
+  build, server startup, and HTTP authentication smoke checks. Results and
+  remaining browser/dependency checks are recorded in [VERIFICATION.md](VERIFICATION.md).
