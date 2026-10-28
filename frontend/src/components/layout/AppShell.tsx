@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Avatar, Button, cx } from '@/components/ui'
+import { Avatar, Button } from '@/components/ui'
+import { cx } from '@/lib/cx'
 import { useSession } from '@/context/session'
+import { ATTENDANCE_CHANGED, LEAVE_CHANGED, emitAppEvent, useAppEvent } from '@/hooks/useAppEvent'
 import { formatTime } from '@/lib/dates'
 import { currentTheme, toggleTheme, type Theme } from '@/lib/theme'
 import { checkIn, checkOut, todayStatus } from '@/services/attendance'
@@ -12,7 +14,13 @@ import {
   updateCompany,
   uploadCompanyLogo,
 } from '@/services/company'
-import type { Company } from '@/types/models'
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  unreadNotificationCount,
+} from '@/services/notifications'
+import type { Company, Notification } from '@/types/models'
 import { fullName } from '@/types/models'
 
 const NAV = [
@@ -68,6 +76,7 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-2">
             <CheckInControl onChange={() => { void refreshEmployee() }} />
+            <NotificationBell />
             <AvatarMenu
               name={fullName(employee)}
               role={isPrivileged ? 'Admin / HR' : 'Employee'}
@@ -104,38 +113,38 @@ export function AppShell() {
  * in twice is an error rather than a second row — the service enforces it and
  * this control reflects the three states: not in yet, in, done for the day.
  */
+type TodayState = { checkedIn: boolean; checkIn: string | null; checkOut: string | null }
+
+const toTodayState = (s: Awaited<ReturnType<typeof todayStatus>>): TodayState => ({
+  checkedIn: s.checkedIn,
+  checkIn: s.row?.check_in ?? null,
+  checkOut: s.row?.check_out ?? null,
+})
+
 function CheckInControl({ onChange }: { onChange: () => void }) {
-  const [state, setState] = useState<{
-    checkedIn: boolean
-    checkIn: string | null
-    checkOut: string | null
-  }>({ checkedIn: false, checkIn: null, checkOut: null })
+  const [state, setState] = useState<TodayState>({ checkedIn: false, checkIn: null, checkOut: null })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    const s = await todayStatus()
-    setState({
-      checkedIn: s.checkedIn,
-      checkIn: s.row?.check_in ?? null,
-      checkOut: s.row?.check_out ?? null,
-    })
-  }, [])
-
   useEffect(() => {
-    void load().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'Could not load today\'s attendance.')
-    })
-  }, [load])
+    let alive = true
+    todayStatus()
+      .then((s) => { if (alive) setState(toTodayState(s)) })
+      .catch((cause: unknown) => {
+        if (alive) setError(cause instanceof Error ? cause.message : 'Could not load today\'s attendance.')
+      })
+    return () => { alive = false }
+  }, [])
 
   async function act() {
     setBusy(true)
     setError(null)
     try {
-      if (state?.checkedIn) await checkOut()
+      if (state.checkedIn) await checkOut()
       else await checkIn()
-      await load()
+      setState(toTodayState(await todayStatus()))
       onChange()
+      emitAppEvent(ATTENDANCE_CHANGED)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that.')
     } finally {
@@ -146,16 +155,195 @@ function CheckInControl({ onChange }: { onChange: () => void }) {
   const done = Boolean(state.checkOut)
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="relative flex items-center gap-2">
       {state.checkIn && (
         <span className="t-data hidden text-text-muted md:inline">
           {formatTime(state.checkIn)}
           {state.checkOut ? ` – ${formatTime(state.checkOut)}` : ''}
         </span>
       )}
-      <Button size="sm" onClick={act} disabled={busy || done} title={error ?? undefined}>
+      <Button size="sm" onClick={act} disabled={busy || done}>
         {done ? 'Done for today' : state.checkedIn ? 'Check out' : 'Check in'}
       </Button>
+      {error && (
+        <p
+          role="alert"
+          className="absolute right-0 top-full z-40 mt-2 w-64 rounded-control border border-danger-ink bg-surface-raised px-3 py-2 t-label font-normal normal-case text-danger-ink"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** `28 Oct, 14:05` in the viewer's local time. */
+const formatStamp = (ts: string): string =>
+  new Date(ts).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+/**
+ * Leave decisions, written by the database when a request is reviewed. The
+ * unread count is cheap, so it refreshes on focus, every minute, and whenever
+ * this tab changes leave; the list itself loads only when the menu opens.
+ */
+function NotificationBell() {
+  const navigate = useNavigate()
+  const ref = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [unread, setUnread] = useState(0)
+  const [items, setItems] = useState<Notification[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refreshCount = useCallback(() => {
+    unreadNotificationCount().then(setUnread).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    refreshCount()
+    const timer = window.setInterval(refreshCount, 60_000)
+    window.addEventListener('focus', refreshCount)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshCount)
+    }
+  }, [refreshCount])
+
+  useAppEvent(LEAVE_CHANGED, refreshCount)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  function toggle() {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    setOpen(true)
+    setItems(null)
+    setError(null)
+    listNotifications()
+      .then(setItems)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : 'Could not load notifications.')
+      })
+  }
+
+  function select(item: Notification) {
+    setOpen(false)
+    if (!item.read_at) {
+      markNotificationRead(item.id).then(refreshCount).catch(() => undefined)
+    }
+    navigate('/time-off')
+  }
+
+  function markAll() {
+    markAllNotificationsRead()
+      .then(() => {
+        const now = new Date().toISOString()
+        setItems((current) => current?.map((item) => ({ ...item, read_at: item.read_at ?? now })) ?? null)
+        setUnread(0)
+      })
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : 'Could not mark notifications as read.')
+      })
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-neutral-fill"
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]" aria-hidden="true">
+          <path
+            d="M6 9.5a6 6 0 1 1 12 0c0 4.5 1.75 6 1.75 6H4.25S6 14 6 9.5Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-text px-1 text-center t-label leading-[18px] text-bg">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2.5rem)] rounded-card border border-border bg-surface-raised p-1"
+        >
+          <div className="flex items-center justify-between border-b border-border-soft px-3 py-3">
+            <p className="t-caption font-bold">Notifications</p>
+            {items?.some((item) => !item.read_at) && (
+              <button type="button" onClick={markAll} className="t-label text-text-muted hover:text-text">
+                Mark all read
+              </button>
+            )}
+          </div>
+          {error && <p role="alert" className="px-3 py-3 t-label text-danger-ink">{error}</p>}
+          {!error && items === null && <p className="px-3 py-3 t-caption text-text-muted">Loading…</p>}
+          {items?.length === 0 && (
+            <p className="px-3 py-3 t-caption text-text-muted">
+              Nothing yet. Leave decisions show up here.
+            </p>
+          )}
+          {items && items.length > 0 && (
+            <ul className="max-h-96 overflow-y-auto">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => select(item)}
+                    className="flex w-full gap-2 rounded-control px-3 py-2.5 text-left hover:bg-neutral-fill"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.read_at ? 'bg-transparent' : 'bg-text')}
+                    />
+                    <span className="min-w-0">
+                      <span className={cx('block t-caption', !item.read_at && 'font-bold')}>
+                        {item.title}
+                        {!item.read_at && <span className="sr-only"> (unread)</span>}
+                      </span>
+                      <span className="mt-0.5 block t-label font-normal normal-case text-text-muted">
+                        {item.message}
+                      </span>
+                      <span className="mt-1 block t-label font-normal normal-case text-text-muted">
+                        {formatStamp(item.created_at)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }

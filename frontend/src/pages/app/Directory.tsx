@@ -13,6 +13,7 @@ import {
   Spinner,
 } from '@/components/ui'
 import { useSession } from '@/context/session'
+import { ATTENDANCE_CHANGED, useAppEvent } from '@/hooks/useAppEvent'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { listEmployees } from '@/services/employees'
 import { PRESENCE_LABEL } from '@/types/models'
@@ -35,6 +36,7 @@ export function Directory() {
     () => listEmployees(),
     [],
   )
+  useAppEvent(ATTENDANCE_CHANGED, reload)
   const availableDepartments = [
     ...new Set(
       (data ?? [])
@@ -128,7 +130,7 @@ export function Directory() {
                     className="flex h-full flex-col gap-4 rounded-card"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <Avatar name={`${e.first_name} ${e.last_name}`} size={52} />
+                      <Avatar name={`${e.first_name} ${e.last_name}`} src={e.avatar_url} size={52} />
                       <PresenceDot presence={e.presence} />
                     </div>
                     <div>

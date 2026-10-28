@@ -72,11 +72,14 @@ type SignUpCompanyResult = {
 | function | returns | notes |
 |---|---|---|
 | `listEmployees({ search?, department? })` | `EmployeeCard[]` | Calls the narrow `list_employee_directory()` RPC; includes derived `presence` |
-| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's |
+| `getEmployee(id)` | `EmployeeProfile` | Own/privileged full profile or a directory-safe coworker profile; a normal employee may read their own wage but not a coworker's. Includes `managerName` when the manager is active |
 | `createEmployee(input)` | `{ employee, temporaryPassword }` | Admin/HR only. Calls the server-side creation flow; the employee signs in with `employee.work_email`, and the temporary password is returned once and never persisted in plaintext |
 | `updateEmployee(id, patch)` | `Employee` | RLS/trigger permit self-edits only to safe profile/private fields; Admin/HR can update company employees |
 | `deactivateEmployee(id)` | `void` | Admin/HR only; sets `is_active = false` |
 | `uploadAvatar(file)` | `string` | `avatars` bucket |
+| `uploadResume(employee, file)` | `Employee` | Own résumé only. PDF/DOC/DOCX up to 5 MB into the private `resumes` bucket; records `resume_path`/`resume_name`/`resume_uploaded_at` and removes the previous file |
+| `resumeUrl(path)` | `string` | Short-lived signed URL for the owner or their company's Admin/HR |
+| `deleteResume(employee)` | `Employee` | Clears the résumé columns, then removes the file |
 
 ## `attendance.ts`
 
@@ -85,7 +88,7 @@ type SignUpCompanyResult = {
 | `checkIn()` | `AttendanceRow` | Calls the guarded server action for the caller; errors if one already exists |
 | `checkOut()` | `AttendanceRow` | Calls the guarded server action for the caller's open row |
 | `todayStatus()` | `{ checkedIn: boolean; row: AttendanceRow \| null }` | Reads the caller's current-day row for the header control |
-| `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours` |
+| `myAttendance(month)` | `AttendanceDay[]` | Current user's month, with derived `workHours`. Starts at `date_of_joining`; today appears only once it has a record |
 | `companyAttendance(date, { search? })` | `AttendanceDay[]` | Calls the guarded Admin/HR-only company register RPC |
 | `attendanceSummary(employeeId, month)` | `{ present, absent, halfDay, leave }` | Count cards |
 
@@ -95,13 +98,13 @@ type SignUpCompanyResult = {
 |---|---|---|
 | `myBalances()` | `{ paid: number; sick: number }` | Reads the caller's employee balances |
 | `myRequests()` | `LeaveRequest[]` | |
-| `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid` |
-| `cancelRequest(id)` | `void` | Own pending request only |
+| `createRequest(input)` | `LeaveRequest` | Server derives caller and working-day count; type is `paid`, `sick`, or `unpaid`. Refused if it overlaps the caller's pending or approved leave |
+| `cancelRequest(id)` | `void` | Own pending request only. The page then removes its certificate with `deleteAttachment(path)` |
 | `uploadAttachment(file)` | `string` | Stores a private object path in `leave-documents`; optional for MVP |
 | `signedAttachmentUrl(path)` | `string` | Short-lived URL for an authorized employee or Admin/HR viewer |
 | `pendingRequests()` | `LeaveRequest[]` | Admin/HR only |
 | `allRequests({ search?, status? })` | `LeaveRequest[]` | Admin/HR only |
-| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically |
+| `reviewRequest(id, status, comment?)` | `LeaveRequest` | Admin/HR only; server derives reviewer; approval adjusts balance exactly once and atomically, and is refused over days already covered by approved leave |
 
 ## `company.ts`
 

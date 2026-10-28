@@ -20,6 +20,7 @@ import {
 } from '@/components/ui'
 import { YearCalendar } from '@/components/timeoff/YearCalendar'
 import { useSession } from '@/context/session'
+import { LEAVE_CHANGED, emitAppEvent } from '@/hooks/useAppEvent'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import { addDays, formatDate, today, workingDaysBetween } from '@/lib/dates'
 import {
@@ -34,7 +35,7 @@ import {
   uploadAttachment,
 } from '@/services/timeOff'
 import { LEAVE_TYPE_LABEL } from '@/types/models'
-import type { LeaveStatus, LeaveType } from '@/types/models'
+import type { LeaveRequest, LeaveStatus, LeaveType } from '@/types/models'
 
 export function TimeOff() {
   const { isPrivileged } = useSession()
@@ -82,6 +83,7 @@ function MyTimeOff() {
   const { employee, refreshEmployee } = useSession()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'calendar' | 'list'>('calendar')
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { status, data, error, reload } = useAsync(async () => {
     if (!employee) throw new Error('Not signed in.')
@@ -92,9 +94,19 @@ function MyTimeOff() {
     return { balances, requests }
   }, [employee?.id])
 
-  async function cancel(id: string) {
-    await cancelRequest(id)
-    reload()
+  async function cancel(request: LeaveRequest) {
+    if (!window.confirm('Cancel this leave request?')) return
+    setActionError(null)
+    try {
+      await cancelRequest(request.id)
+      if (request.attachment_url) {
+        void deleteAttachment(request.attachment_url).catch(() => undefined)
+      }
+      reload()
+      emitAppEvent(LEAVE_CHANGED)
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'Could not cancel that request.')
+    }
   }
 
   return (
@@ -119,6 +131,12 @@ function MyTimeOff() {
               </Button>
             </Card>
           </div>
+
+          {actionError && (
+            <p role="alert" className="mb-4 t-caption text-danger-ink">
+              {actionError}
+            </p>
+          )}
 
           <div className="mb-5 flex justify-end gap-2">
             <Button
@@ -178,7 +196,7 @@ function MyTimeOff() {
                   </Td>
                   <Td right>
                     {r.status === 'pending' && (
-                      <Button size="sm" variant="danger" onClick={() => cancel(r.id)}>
+                      <Button size="sm" variant="danger" onClick={() => { void cancel(r) }}>
                         Cancel
                       </Button>
                     )}
@@ -195,7 +213,8 @@ function MyTimeOff() {
         onClose={() => setOpen(false)}
         onCreated={() => {
           reload()
-        void refreshEmployee()
+          void refreshEmployee()
+          emitAppEvent(LEAVE_CHANGED)
         }}
       />
     </>
@@ -349,31 +368,12 @@ function Approvals() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending')
   const q = useDebounced(search)
-  const [acting, setActing] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<LeaveRequest | null>(null)
 
   const { status, data, error: loadError, reload } = useAsync(
     () => allRequests({ search: q, status: filter }),
     [q, filter],
   )
-
-  async function review(id: string, decision: 'approved' | 'rejected') {
-    const comment = window.prompt(
-      decision === 'approved' ? 'Approval comment (optional)' : 'Rejection comment (optional)',
-    )
-    if (comment === null) return
-    setActing(id)
-    setError(null)
-    try {
-      await reviewRequest(id, decision, comment)
-      reload()
-      void refreshEmployee()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not record that decision.')
-    } finally {
-      setActing(null)
-    }
-  }
 
   return (
     <>
@@ -398,12 +398,6 @@ function Approvals() {
           <option value="all">All</option>
         </Select>
       </div>
-
-      {error && (
-        <p role="alert" className="mb-4 t-caption text-danger-ink">
-          {error}
-        </p>
-      )}
 
       {status === 'loading' && <Spinner label="Loading requests" />}
       {status === 'error' && <ErrorState message={loadError} onRetry={reload} />}
@@ -436,7 +430,7 @@ function Approvals() {
               <tr key={r.id}>
                 <Td>
                   <div className="flex items-center gap-3">
-                    <Avatar name={r.employee_name} size={30} />
+                    <Avatar name={r.employee_name} src={r.avatar_url} size={30} />
                     <div>
                       <p className="t-caption">{r.employee_name}</p>
                       {r.remarks && (
@@ -463,24 +457,9 @@ function Approvals() {
                 </Td>
                 <Td right>
                   {r.status === 'pending' ? (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={acting === r.id}
-                        onClick={() => review(r.id, 'rejected')}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="strong"
-                        disabled={acting === r.id}
-                        onClick={() => review(r.id, 'approved')}
-                      >
-                        Approve
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="strong" onClick={() => setReviewing(r)}>
+                      Review
+                    </Button>
                   ) : (
                     <span className="t-label text-text-muted">Decided</span>
                   )}
@@ -489,21 +468,163 @@ function Approvals() {
             ))}
           </Table>
         ))}
+
+      <Modal open={reviewing !== null} onClose={() => setReviewing(null)} title="Review leave request">
+        {reviewing && (
+          <ReviewForm
+            key={reviewing.id}
+            request={reviewing}
+            onCancel={() => setReviewing(null)}
+            onDecided={() => {
+              setReviewing(null)
+              reload()
+              void refreshEmployee()
+              emitAppEvent(LEAVE_CHANGED)
+            }}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
+/**
+ * Everything a reviewer needs on one screen: the request, the certificate, and
+ * whether the balance covers it. The database re-checks the balance and the
+ * overlap rule on approval, so this warning is advice, not the guard.
+ */
+function ReviewForm({
+  request,
+  onCancel,
+  onDecided,
+}: {
+  request: LeaveRequest
+  onCancel: () => void
+  onDecided: () => void
+}) {
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState<'approved' | 'rejected' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const balances = useAsync(() => myBalances(request.employee_id), [request.employee_id])
+
+  const balance =
+    balances.status !== 'ready'
+      ? null
+      : request.leave_type === 'paid'
+        ? balances.data.paid
+        : request.leave_type === 'sick'
+          ? balances.data.sick
+          : null
+  const short = balance !== null && balance < request.days
+
+  async function decide(decision: 'approved' | 'rejected') {
+    setBusy(decision)
+    setError(null)
+    try {
+      await reviewRequest(request.id, decision, comment)
+      onDecided()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not record that decision.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-control border border-danger-ink px-3 py-2 t-caption text-danger-ink"
+        >
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Avatar name={request.employee_name} src={request.avatar_url} size={40} />
+        <div>
+          <p className="t-caption font-bold">{request.employee_name}</p>
+          <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
+            {LEAVE_TYPE_LABEL[request.leave_type]} · {formatDate(request.start_date)} –{' '}
+            {formatDate(request.end_date)} · {request.days.toFixed(2)}{' '}
+            {request.days === 1 ? 'day' : 'days'}
+          </p>
+        </div>
+      </div>
+
+      {request.remarks && (
+        <p className="rounded-control border border-border-soft px-3 py-2 t-caption">
+          {request.remarks}
+        </p>
+      )}
+
+      {request.attachment_url && <AttachmentLink path={request.attachment_url} />}
+
+      {request.leave_type !== 'unpaid' && (
+        <p className={short ? 't-caption text-danger-ink' : 't-caption text-text-muted'}>
+          {balances.status === 'loading' && 'Checking the balance…'}
+          {balances.status === 'error' && 'Could not load the current balance.'}
+          {balance !== null &&
+            `${balance.toFixed(2)} ${LEAVE_TYPE_LABEL[request.leave_type].toLowerCase()} days available` +
+              (short ? ' — not enough to approve this request.' : '.')}
+        </p>
+      )}
+
+      <Field label="Comment" htmlFor="review-comment" hint="Optional. The employee sees it with the decision.">
+        <Textarea
+          id="review-comment"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </Field>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" onClick={onCancel} disabled={busy !== null}>
+          Close
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          onClick={() => { void decide('rejected') }}
+          disabled={busy !== null}
+        >
+          {busy === 'rejected' ? 'Rejecting…' : 'Reject'}
+        </Button>
+        <Button
+          type="button"
+          variant="strong"
+          onClick={() => { void decide('approved') }}
+          disabled={busy !== null || short}
+        >
+          {busy === 'approved' ? 'Approving…' : 'Approve'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The signed URL arrives after a round trip, and browsers block a tab opened
+ * after an await. So the tab opens inside the click and is pointed at the URL
+ * once it exists; if the browser blocked even that, a plain link is offered.
+ */
 function AttachmentLink({ path, compact = false }: { path: string; compact?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
 
   async function open() {
+    const tab = window.open('', '_blank')
+    if (tab) tab.opener = null
     setBusy(true)
     setError(null)
     try {
       const url = await signedAttachmentUrl(path)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      if (tab) tab.location.href = url
+      else setFallbackUrl(url)
     } catch (cause) {
+      tab?.close()
       setError(cause instanceof Error ? cause.message : 'Could not open the certificate.')
     } finally {
       setBusy(false)
@@ -512,9 +633,21 @@ function AttachmentLink({ path, compact = false }: { path: string; compact?: boo
 
   return (
     <span className={compact ? 'ml-2 inline-block' : 'mt-1 block'}>
-      <button type="button" className="t-label text-text-muted underline" onClick={open} disabled={busy}>
-        {busy ? 'Opening…' : compact ? 'Certificate' : 'View certificate'}
-      </button>
+      {fallbackUrl ? (
+        <a
+          href={fallbackUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="t-label text-text-muted underline"
+          onClick={() => setFallbackUrl(null)}
+        >
+          Open certificate
+        </a>
+      ) : (
+        <button type="button" className="t-label text-text-muted underline" onClick={open} disabled={busy}>
+          {busy ? 'Opening…' : compact ? 'Certificate' : 'View certificate'}
+        </button>
+      )}
       {error && <span role="alert" className="ml-2 t-label text-danger-ink">{error}</span>}
     </span>
   )

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Button, Card, cx } from '@/components/ui'
+import { Button, Card } from '@/components/ui'
+import { cx } from '@/lib/cx'
 import { daysInMonth, formatDate, isWeekend, today } from '@/lib/dates'
 import { holidaysForYear } from '@/lib/holidays'
 import { LEAVE_TYPE_LABEL } from '@/types/models'

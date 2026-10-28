@@ -63,6 +63,7 @@ information, salary, leave-allocation, or login-counter tables.
 | `pan_no` | text | Private Info |
 | `uan_no` | text | Private Info |
 | `monthly_wage` | numeric(12,2) | The one salary input |
+| `resume_path` / `resume_name` / `resume_uploaded_at` | text / text / timestamptz | Private `resumes` object; owner and Admin/HR only, never in the directory |
 | `paid_leave_balance` | numeric(5,2) default 24 | Mutated only when paid leave is approved |
 | `sick_leave_balance` | numeric(5,2) default 7 | Mutated only when sick leave is approved |
 | `is_active` | boolean default true | Soft deactivation |
@@ -128,7 +129,10 @@ the browser cannot insert an arbitrary employee or day total. Approving a paid
 or sick request through `review_leave_request()` decrements the matching
 balance in the same database transaction. Unpaid leave changes no balance.
 Re-reviewing an already approved or rejected request fails without changing a
-balance twice.
+balance twice. A new request may not overlap the employee's own pending or
+approved leave, and an approval is refused over days already covered by
+approved leave, so no day is charged twice. Only an admin may change an
+employee's `role`, and never their own.
 
 ## `notifications`
 
@@ -198,11 +202,12 @@ path. Employee creation generates only a temporary password; the employee's
 work email is the sole sign-in identifier.
 
 Storage buckets: public `avatars` and `company-logos`, plus private
-`leave-documents`. Object paths begin with the caller's company ID; employee
+`leave-documents` and `resumes`. Object paths begin with the caller's company ID; employee
 assets add the employee ID as the second segment. Avatars are limited to JPG,
 PNG, or WebP (5 MB), logos also allow SVG (5 MB), and leave documents allow
-PDF, JPG, or PNG (10 MB). Private leave documents are opened through
-authorization-checked, short-lived signed URLs.
+PDF, JPG, or PNG (10 MB), and résumés PDF, DOC, or DOCX (5 MB). Private leave
+documents and résumés are opened through authorization-checked, short-lived
+signed URLs; only the owner uploads or deletes them.
 
 ## Seed data
 

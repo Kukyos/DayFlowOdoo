@@ -1,52 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Modal, cx } from '@/components/ui'
+import { Button, Modal } from '@/components/ui'
+import { cx } from '@/lib/cx'
+import { deleteResume, resumeUrl, uploadResume } from '@/services/employees'
+import type { Employee } from '@/types/models'
 
 /**
- * Resume upload for the Resume tab, entirely on the frontend.
+ * Resume upload for the Resume tab.
  *
- * There is no `resume` column, storage bucket, or service function yet —
- * only `avatars` storage exists (docs/SCHEMA.md, docs/SERVICES.md). Adding
- * real persistence is a backend decision (a bucket, RLS, a documented
- * service function), so this keeps the file in memory for the tab's
- * lifetime via `URL.createObjectURL` and never calls Supabase. Swapping in
- * a real upload later is a matter of replacing `processFile` below with a
- * service call — nothing here should have to change shape.
+ * The file lives in the private `resumes` bucket; the employee row records its
+ * path, name and upload time. Only the owner uploads or removes it, and the
+ * owner and their company's Admin/HR open it through a short-lived signed URL.
+ * Coworkers get a directory row without these columns, so this card is not
+ * rendered for them at all.
  */
 
-const ACCEPTED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]
 const ACCEPTED_EXTENSIONS = ['.pdf', '.doc', '.docx']
 const MAX_BYTES = 5 * 1024 * 1024
 
-type StoredResume = {
-  file: File
-  url: string
-  uploadedAt: number
-}
-
-// Module-level so the file survives a tab switch even though the Resume tab
-// unmounts when another tab is selected (EmployeeProfile renders only the
-// active tab). Keyed by employee id — never sent anywhere.
-const resumeStore = new Map<string, StoredResume>()
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function isPdf(file: File): boolean {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-}
+const isPdfName = (name: string): boolean => name.toLowerCase().endsWith('.pdf')
 
 function validate(file: File): string | null {
-  const okType =
-    ACCEPTED_TYPES.includes(file.type) ||
-    ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))
-  if (!okType) return 'Only PDF, DOC, or DOCX files are accepted.'
+  if (!ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+    return 'Only PDF, DOC, or DOCX files are accepted.'
+  }
   if (file.size > MAX_BYTES) return 'That file is larger than 5 MB.'
   return null
 }
@@ -89,24 +65,23 @@ function Toast({ kind, message }: { kind: 'success' | 'error'; message: string }
   )
 }
 
-export function ResumeUpload({ employeeId, editable }: { employeeId: string; editable: boolean }) {
-  const [resume, setResume] = useState<StoredResume | null>(() => resumeStore.get(employeeId) ?? null)
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
+export function ResumeUpload({
+  employee,
+  editable,
+  onSaved,
+}: {
+  employee: Employee
+  editable: boolean
+  onSaved: () => void
+}) {
+  const [busy, setBusy] = useState<'upload' | 'remove' | 'open' | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const timerRef = useRef<number | undefined>(undefined)
   const toastTimerRef = useRef<number | undefined>(undefined)
 
-  useEffect(
-    () => () => {
-      window.clearInterval(timerRef.current)
-      window.clearTimeout(toastTimerRef.current)
-    },
-    [],
-  )
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), [])
 
   function notify(kind: 'success' | 'error', message: string) {
     window.clearTimeout(toastTimerRef.current)
@@ -114,91 +89,105 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3500)
   }
 
-  function processFile(file: File) {
+  async function processFile(file: File) {
     const problem = validate(file)
     if (problem) {
       notify('error', problem)
       return
     }
-
-    setUploading(true)
-    setProgress(0)
-    window.clearInterval(timerRef.current)
-
-    let pct = 0
-    timerRef.current = window.setInterval(() => {
-      pct = Math.min(pct + Math.random() * 25 + 12, 100)
-      setProgress(pct)
-      if (pct >= 100) {
-        window.clearInterval(timerRef.current)
-        const previous = resumeStore.get(employeeId)
-        if (previous) URL.revokeObjectURL(previous.url)
-        const stored: StoredResume = { file, url: URL.createObjectURL(file), uploadedAt: Date.now() }
-        resumeStore.set(employeeId, stored)
-        setResume(stored)
-        setUploading(false)
-        notify('success', 'Resume uploaded.')
-      }
-    }, 150)
+    setBusy('upload')
+    try {
+      await uploadResume(employee, file)
+      onSaved()
+      notify('success', 'Resume uploaded.')
+    } catch (cause) {
+      notify('error', cause instanceof Error ? cause.message : 'Could not upload that résumé.')
+    } finally {
+      setBusy(null)
+    }
   }
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (file) processFile(file)
+    if (file) void processFile(file)
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault()
     setDragOver(false)
-    if (!editable || uploading) return
+    if (!editable || busy) return
     const file = e.dataTransfer.files?.[0]
-    if (file) processFile(file)
+    if (file) void processFile(file)
   }
 
-  function remove() {
-    const existing = resumeStore.get(employeeId)
-    if (existing) URL.revokeObjectURL(existing.url)
-    resumeStore.delete(employeeId)
-    setResume(null)
-    notify('success', 'Resume removed.')
-  }
-
-  function preview() {
-    if (!resume) return
-    if (isPdf(resume.file)) {
-      setPreviewOpen(true)
-    } else {
-      window.open(resume.url, '_blank', 'noopener,noreferrer')
+  async function remove() {
+    if (!window.confirm('Remove your résumé?')) return
+    setBusy('remove')
+    try {
+      await deleteResume(employee)
+      onSaved()
+      notify('success', 'Resume removed.')
+    } catch (cause) {
+      notify('error', cause instanceof Error ? cause.message : 'Could not remove the résumé.')
+    } finally {
+      setBusy(null)
     }
   }
+
+  /**
+   * A PDF previews in a dialog. A Word file can only be downloaded, and the tab
+   * for that opens inside the click: browsers block one opened after an await.
+   */
+  async function open(path: string, name: string) {
+    const pdf = isPdfName(name)
+    const tab = pdf ? null : window.open('', '_blank')
+    if (tab) tab.opener = null
+    setBusy('open')
+    try {
+      const url = await resumeUrl(path)
+      if (pdf) setPreviewUrl(url)
+      else if (tab) tab.location.href = url
+      else window.location.assign(url)
+    } catch (cause) {
+      tab?.close()
+      notify('error', cause instanceof Error ? cause.message : 'Could not open the résumé.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const path = employee.resume_path
+  const name = employee.resume_name ?? 'Resume'
 
   return (
     <>
       <h2 className="t-h3 mb-4">Resume file</h2>
 
-      {resume ? (
+      {path ? (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4 rounded-control border border-border-soft p-4">
             <DocumentIcon className="h-9 w-9 shrink-0 text-text-muted" />
             <div className="min-w-0 flex-1">
-              <p className="t-caption truncate">{resume.file.name}</p>
-              <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
-                {formatBytes(resume.file.size)} · Uploaded {new Date(resume.uploadedAt).toLocaleString()}
-              </p>
+              <p className="t-caption truncate">{name}</p>
+              {employee.resume_uploaded_at && (
+                <p className="t-label mt-0.5 font-normal normal-case text-text-muted">
+                  Uploaded {new Date(employee.resume_uploaded_at).toLocaleString()}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={preview}>
-              Preview resume
+            <Button size="sm" onClick={() => { void open(path, name) }} disabled={busy !== null}>
+              {busy === 'open' ? 'Opening…' : isPdfName(name) ? 'Preview resume' : 'Download resume'}
             </Button>
             {editable && (
               <>
-                <Button size="sm" onClick={() => inputRef.current?.click()}>
-                  Replace resume
+                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={busy !== null}>
+                  {busy === 'upload' ? 'Uploading…' : 'Replace resume'}
                 </Button>
-                <Button size="sm" variant="danger" onClick={remove}>
-                  Remove resume
+                <Button size="sm" variant="danger" onClick={() => { void remove() }} disabled={busy !== null}>
+                  {busy === 'remove' ? 'Removing…' : 'Remove resume'}
                 </Button>
               </>
             )}
@@ -218,16 +207,8 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
           )}
         >
           <DocumentIcon className="h-8 w-8 text-text-muted" />
-          {uploading ? (
-            <div className="flex w-full max-w-xs flex-col items-center gap-2">
-              <p className="t-caption text-text-muted">Uploading…</p>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border-soft">
-                <div
-                  className="h-full rounded-full bg-text transition-[width] duration-150 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
+          {busy === 'upload' ? (
+            <p className="t-caption text-text-muted">Uploading…</p>
           ) : (
             <>
               <p className="t-caption text-text-muted">Drag a file here, or</p>
@@ -253,11 +234,11 @@ export function ResumeUpload({ employeeId, editable }: { employeeId: string; edi
         />
       )}
 
-      {resume && isPdf(resume.file) && (
-        <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={resume.file.name}>
-          <iframe src={resume.url} title="Resume preview" className="h-[70vh] w-full rounded-control border border-border-soft" />
-        </Modal>
-      )}
+      <Modal open={previewUrl !== null} onClose={() => setPreviewUrl(null)} title={name}>
+        {previewUrl && (
+          <iframe src={previewUrl} title="Resume preview" className="h-[70vh] w-full rounded-control border border-border-soft" />
+        )}
+      </Modal>
 
       {toast && <Toast kind={toast.kind} message={toast.message} />}
     </>

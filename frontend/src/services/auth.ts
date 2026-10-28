@@ -116,8 +116,10 @@ export async function currentEmployee(): Promise<Employee> {
     .single()
 
   if (error || !data) {
+    // Row-level security hides a deactivated employee's row from themselves,
+    // so "not found" is the deactivated case as often as a broken one.
     throw new ServiceError(
-      'Your account is signed in, but its employee profile could not be loaded.',
+      'Your account is signed in, but its employee profile could not be loaded. If your account was deactivated, contact your HR team.',
       error,
     )
   }

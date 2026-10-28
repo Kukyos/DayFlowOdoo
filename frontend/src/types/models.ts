@@ -58,6 +58,8 @@ export type DirectoryEmployee = {
 export type EmployeeProfile = {
   employee: Employee | DirectoryEmployee
   presence: Presence
+  /** Full name of `manager_id`, when that manager is active in the directory. */
+  managerName: string | null
 }
 
 export const isFullEmployee = (employee: Employee | DirectoryEmployee): employee is Employee =>

@@ -157,6 +157,9 @@ export type Database = {
           must_change_password: boolean
           paid_leave_balance: number
           pan_no: string | null
+          resume_name: string | null
+          resume_path: string | null
+          resume_uploaded_at: string | null
           role: string
           sick_leave_balance: number
           skills: string[] | null
@@ -186,6 +189,9 @@ export type Database = {
           must_change_password?: boolean
           paid_leave_balance?: number
           pan_no?: string | null
+          resume_name?: string | null
+          resume_path?: string | null
+          resume_uploaded_at?: string | null
           role: string
           sick_leave_balance?: number
           skills?: string[] | null
@@ -215,6 +221,9 @@ export type Database = {
           must_change_password?: boolean
           paid_leave_balance?: number
           pan_no?: string | null
+          resume_name?: string | null
+          resume_path?: string | null
+          resume_uploaded_at?: string | null
           role?: string
           sick_leave_balance?: number
           skills?: string[] | null

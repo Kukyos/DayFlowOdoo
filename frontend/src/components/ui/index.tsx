@@ -13,9 +13,7 @@ import { useEffect, useRef } from 'react'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import type { AttendanceStatus, LeaveStatus, Presence } from '@/types/models'
 import { ATTENDANCE_LABEL, PRESENCE_LABEL } from '@/types/models'
-
-export const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(' ')
+import { cx } from '@/lib/cx'
 
 /* ── Button ───────────────────────────────────────────────────────────────── */
 

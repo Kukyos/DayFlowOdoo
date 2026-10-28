@@ -15,6 +15,7 @@ import {
   Th,
 } from '@/components/ui'
 import { useSession } from '@/context/session'
+import { ATTENDANCE_CHANGED, useAppEvent } from '@/hooks/useAppEvent'
 import { useAsync, useDebounced } from '@/hooks/useAsync'
 import {
   addDays,
@@ -93,6 +94,7 @@ function MyAttendance() {
     ])
     return { days, summary }
   }, [employee?.id, month])
+  useAppEvent(ATTENDANCE_CHANGED, reload)
 
   const isCurrentMonth = month === monthKey(today())
 
@@ -263,7 +265,7 @@ function CompanyAttendance() {
                       to={`/employees/${d.employee_id}`}
                       className="flex items-center gap-3 hover:underline"
                     >
-                      <Avatar name={d.employee_name} size={30} />
+                      <Avatar name={d.employee_name} src={d.avatar_url} size={30} />
                       {d.employee_name}
                     </Link>
                   </Td>

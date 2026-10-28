@@ -84,7 +84,11 @@ export async function getEmployee(id: string): Promise<EmployeeProfile> {
   }
   const directory = toDirectoryEmployee(directoryRow)
   const employee = fullResult.data ? toEmployee(fullResult.data) : directory
-  return { employee, presence: directory.presence }
+  const manager = directory.manager_id
+    ? directoryResult.data.find((row) => row.id === directory.manager_id)
+    : undefined
+  const managerName = manager ? [manager.first_name, manager.last_name].filter(Boolean).join(' ') : null
+  return { employee, presence: directory.presence, managerName }
 }
 
 export type EmployeeUpdate = Partial<Pick<
@@ -100,6 +104,9 @@ export type EmployeeUpdate = Partial<Pick<
   | 'pan_no'
   | 'uan_no'
   | 'monthly_wage'
+  | 'resume_path'
+  | 'resume_name'
+  | 'resume_uploaded_at'
 >>
 
 export async function updateEmployee(id: string, patch: EmployeeUpdate): Promise<Employee> {
@@ -196,4 +203,63 @@ export async function deleteAvatar(publicUrl: string): Promise<void> {
   const path = decodeURIComponent(pathname.slice(markerIndex + marker.length))
   const { error } = await supabaseClient().storage.from('avatars').remove([path])
   if (error) throw new ServiceError('Could not remove the previous avatar.', error)
+}
+
+// Keyed by extension: some browsers report an empty MIME type for .doc/.docx,
+// and the bucket only accepts these three.
+const RESUME_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/** Uploads to the private `resumes` bucket, records it, then drops the old file. */
+export async function uploadResume(employee: Employee, file: File): Promise<Employee> {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = RESUME_TYPES[extension]
+  if (!contentType) throw new ServiceError('Use a PDF, DOC, or DOCX résumé.')
+  if (file.size > 5 * 1024 * 1024) throw new ServiceError('The résumé must be 5 MB or smaller.')
+
+  const client = supabaseClient()
+  const path = `${employee.company_id}/${employee.id}/${crypto.randomUUID()}.${extension}`
+  const { error } = await client.storage.from('resumes').upload(path, file, {
+    cacheControl: '3600',
+    contentType,
+    upsert: false,
+  })
+  if (error) throw new ServiceError('Could not upload that résumé.', error)
+
+  let updated: Employee
+  try {
+    updated = await updateEmployee(employee.id, {
+      resume_path: path,
+      resume_name: file.name,
+      resume_uploaded_at: new Date().toISOString(),
+    })
+  } catch (cause) {
+    void client.storage.from('resumes').remove([path])
+    throw cause
+  }
+  if (employee.resume_path) void client.storage.from('resumes').remove([employee.resume_path])
+  return updated
+}
+
+export async function resumeUrl(path: string): Promise<string> {
+  const { data, error } = await supabaseClient()
+    .storage
+    .from('resumes')
+    .createSignedUrl(path, 60)
+  return unwrap({ data, error }, 'Could not open that résumé.').signedUrl
+}
+
+export async function deleteResume(employee: Employee): Promise<Employee> {
+  const updated = await updateEmployee(employee.id, {
+    resume_path: null,
+    resume_name: null,
+    resume_uploaded_at: null,
+  })
+  if (employee.resume_path) {
+    void supabaseClient().storage.from('resumes').remove([employee.resume_path])
+  }
+  return updated
 }

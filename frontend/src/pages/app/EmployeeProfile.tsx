@@ -11,11 +11,11 @@ import {
   Spinner,
   Tabs,
   Textarea,
-  cx,
 } from '@/components/ui'
 import { ResumeUpload } from '@/components/profile/ResumeUpload'
 import { useSession } from '@/context/session'
 import { useAsync } from '@/hooks/useAsync'
+import { cx } from '@/lib/cx'
 import { formatDate } from '@/lib/dates'
 import { computeSalary, formatRupees, MINIMUM_WAGE } from '@/lib/salary'
 import {
@@ -59,6 +59,7 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
     <ProfileBody
       employee={data.employee}
       presence={data.presence}
+      managerName={data.managerName}
       isSelf={data.employee.id === me?.id}
       isPrivileged={isPrivileged}
       actionError={actionError}
@@ -83,6 +84,7 @@ export function EmployeeProfile({ self = false }: { self?: boolean }) {
 function ProfileBody({
   employee,
   presence,
+  managerName,
   isSelf,
   isPrivileged,
   actionError,
@@ -91,6 +93,7 @@ function ProfileBody({
 }: {
   employee: Employee | DirectoryEmployee
   presence: 'present' | 'leave' | 'absent'
+  managerName: string | null
   isSelf: boolean
   isPrivileged: boolean
   actionError: string | null
@@ -170,7 +173,7 @@ function ProfileBody({
       <Tabs tabs={tabs} active={active} onChange={setTab} />
 
       <div className="py-8">
-        {active === 'work' && <WorkInfo employee={employee} />}
+        {active === 'work' && <WorkInfo employee={employee} managerName={managerName} />}
         {active === 'resume' && (
           <Resume employee={employee} editable={isSelf} onSaved={onSaved} />
         )}
@@ -233,7 +236,13 @@ const Row = ({ label, value }: { label: string; value: string | null | undefined
   </div>
 )
 
-function WorkInfo({ employee }: { employee: Employee | DirectoryEmployee }) {
+function WorkInfo({
+  employee,
+  managerName,
+}: {
+  employee: Employee | DirectoryEmployee
+  managerName: string | null
+}) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -244,7 +253,10 @@ function WorkInfo({ employee }: { employee: Employee | DirectoryEmployee }) {
         <Row label="Location" value={employee.location} />
         <Row label="Work email" value={employee.work_email} />
         {isFullEmployee(employee) && <Row label="Mobile" value={employee.mobile} />}
-        <Row label="Manager" value={employee.manager_id ? 'Assigned' : 'No manager on record'} />
+        <Row
+          label="Manager"
+          value={managerName ?? (employee.manager_id ? 'No longer active' : 'No manager on record')}
+        />
       </Card>
     </div>
   )
@@ -296,9 +308,11 @@ function Resume({
             <SkillList skills={employee.skills} />
           </Card>
         </div>
-        <Card>
-          <ResumeUpload employeeId={employee.id} editable={false} />
-        </Card>
+        {isFullEmployee(employee) && (
+          <Card>
+            <ResumeUpload employee={employee} editable={false} onSaved={onSaved} />
+          </Card>
+        )}
       </div>
     )
   }
@@ -335,9 +349,11 @@ function Resume({
         </div>
       </Card>
       </div>
-      <Card>
-        <ResumeUpload employeeId={employee.id} editable={editable} />
-      </Card>
+      {isFullEmployee(employee) && (
+        <Card>
+          <ResumeUpload employee={employee} editable={editable} onSaved={onSaved} />
+        </Card>
+      )}
     </div>
   )
 }
@@ -556,6 +572,11 @@ function SalaryInfo({
               </div>
               {error && <p role="alert" className="mt-3 t-caption text-danger-ink">{error}</p>}
             </>
+          ) : employee.monthly_wage === null ? (
+            <p className="t-caption text-text-muted">
+              Your wage has not been set yet. HR will add it, and the breakdown
+              will appear here.
+            </p>
           ) : (
             <>
               <p className="t-data text-3xl">{formatRupees(wage)}</p>
@@ -566,36 +587,42 @@ function SalaryInfo({
           )}
         </Card>
 
-        <Card>
-          <h2 className="t-h3 mb-3">Net pay</h2>
-          <p className="t-data text-4xl">{formatRupees(breakdown.net)}</p>
-          <p className="t-caption mt-2 text-text-muted">
-            Gross {formatRupees(breakdown.gross)} less {formatRupees(breakdown.totalDeductions)}{' '}
-            in deductions.
-          </p>
-        </Card>
+        {/* Below the minimum the fixed components exceed the wage, so the
+            breakdown would show negative lines — hide it rather than mislead. */}
+        {breakdown.isValid && (
+          <Card>
+            <h2 className="t-h3 mb-3">Net pay</h2>
+            <p className="t-data text-4xl">{formatRupees(breakdown.net)}</p>
+            <p className="t-caption mt-2 text-text-muted">
+              Gross {formatRupees(breakdown.gross)} less {formatRupees(breakdown.totalDeductions)}{' '}
+              in deductions.
+            </p>
+          </Card>
+        )}
       </div>
 
-      <div className="flex flex-col gap-5">
-        <Card>
-          <h2 className="t-h3 mb-4">Earnings</h2>
-          <LineTable lines={breakdown.earnings} total={['Gross', breakdown.gross]} />
-        </Card>
-        <Card>
-          <h2 className="t-h3 mb-4">Deductions</h2>
-          <LineTable
-            lines={breakdown.deductions}
-            total={['Total deductions', breakdown.totalDeductions]}
-          />
-        </Card>
-        <Card>
-          <h2 className="t-h3 mb-1">Employer cost</h2>
-          <p className="t-caption mb-3 text-text-muted">
-            Paid by the company on top of the wage — never deducted from it.
-          </p>
-          <LineTable lines={breakdown.employerCost} />
-        </Card>
-      </div>
+      {breakdown.isValid && (
+        <div className="flex flex-col gap-5">
+          <Card>
+            <h2 className="t-h3 mb-4">Earnings</h2>
+            <LineTable lines={breakdown.earnings} total={['Gross', breakdown.gross]} />
+          </Card>
+          <Card>
+            <h2 className="t-h3 mb-4">Deductions</h2>
+            <LineTable
+              lines={breakdown.deductions}
+              total={['Total deductions', breakdown.totalDeductions]}
+            />
+          </Card>
+          <Card>
+            <h2 className="t-h3 mb-1">Employer cost</h2>
+            <p className="t-caption mb-3 text-text-muted">
+              Paid by the company on top of the wage — never deducted from it.
+            </p>
+            <LineTable lines={breakdown.employerCost} />
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

@@ -48,7 +48,9 @@ export async function checkOut(): Promise<AttendanceRow> {
 
 /**
  * Reads the caller's RLS-visible rows and fills missing calendar days. Approved
- * leave explains a working-day gap; any other gap is an absence.
+ * leave explains a working-day gap; any other gap is an absence. Days before
+ * the joining date are left out, and so is today until there is a record —
+ * nobody is absent before the day is over.
  */
 export async function myAttendance(
   employeeId: string,
@@ -81,7 +83,7 @@ export async function myAttendance(
       .gte('end_date', firstDate),
     client
       .from('employees')
-      .select('first_name, last_name, avatar_url')
+      .select('first_name, last_name, avatar_url, date_of_joining')
       .eq('id', employeeId)
       .maybeSingle(),
   ])
@@ -101,8 +103,11 @@ export async function myAttendance(
     ? `${employeeResult.data.first_name} ${employeeResult.data.last_name}`
     : 'You'
   const avatarUrl = employeeResult.data?.avatar_url ?? null
+  const joined = employeeResult.data?.date_of_joining ?? null
+  const currentDate = today()
 
   return visibleDays
+    .filter((date) => (!joined || date >= joined) && (date < currentDate || rowsByDate.has(date)))
     .map((date): AttendanceDay => {
       const row = rowsByDate.get(date)
       if (row) {
