@@ -233,8 +233,15 @@ select * from employees;   -- now only that user's visible rows
 
 ## 10. Weak spots a reviewer might probe
 
-- **No overlap protection on leave.** Nothing stops one employee requesting
-  overlapping date ranges. Postgres could prevent it with
+- **The migrations in the repo are behind the hosted database.** The generated
+  types and services use `employees.resume_path`, `resume_name` and
+  `resume_uploaded_at`, plus a `resumes` storage bucket, and `docs/SERVICES.md`
+  says leave creation and approval refuse overlapping leave. None of that is in
+  `backend/supabase/migrations/`, so those parts of this document describe only
+  what the repo's migrations create. See `docs/BACKEND_REVIEW.md` section 12.
+- **No overlap protection in the repo's migrations.** `create_leave_request()` and
+  `review_leave_request()` as written there don't stop overlapping date ranges.
+  Postgres could enforce it with
   `EXCLUDE USING gist (employee_id WITH =, daterange(start_date, end_date, '[]') WITH &&)`.
 - **`employees.work_email` has no UNIQUE constraint.** Uniqueness is enforced
   only in `auth.users`.
